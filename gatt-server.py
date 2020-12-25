@@ -78,7 +78,12 @@ class WiRocApplication(dbus.service.Object):
 
         return response
 
-    def PrintNormal(self, address, properties):
+    def PrintNormal(self, properties):
+        if "Address" in properties:
+            address = properties["Address"]
+        else:
+            address = "<unknown>"
+
         print("[ " + address + " ]")
 
         for key in properties.keys():
@@ -96,67 +101,48 @@ class WiRocApplication(dbus.service.Object):
     def InterfacesAdded(self, path, interfaces):
         global device
         print('interfaces added')
-        print('device1_iface: ' + DEVICE1_IFACE)
-        print('device1_iface: ' + interfaces)
+        properties = None
         if DEVICE1_IFACE in interfaces:
-            print('found')
-        properties = interfaces[DEVICE1_IFACE]
-        if not properties:
-            return
+            properties = interfaces[DEVICE1_IFACE]
+            if not properties:
+                return
 
-        if device != None:
-            device = dict(device, **properties)
+        if 'org.bluez.GattService1' in interfaces:
+            properties = interfaces['org.bluez.GattService1']
+            if not properties:
+                return
+
+        if 'org.bluez.GattCharacteristic1' in interfaces:
+            properties = interfaces['org.bluez.GattCharacteristic1']
+            if not properties:
+                return
+
+        if properties == None:
+            for k, v in interfaces.items():
+                print(k, v)
         else:
-            device = properties
-
-        if "Address" in device:
-            address = properties["Address"]
-        else:
-            address = "<unknown>"
-
-        self.PrintNormal(address, device)
+            self.PrintNormal(properties)
 
 
     def InterfacesRemoved(self, path, interfaces):
         global device
         print('interfaces removed')
-        properties = interfaces[DEVICE1_IFACE]
-        if not properties:
-            return
+        print("removed: ")
+        print(*interfaces, sep="\n")
 
-        if device != None:
-            device = dict(device, **properties)
-        else:
-            device = properties
-
-        if "Address" in device:
-            address = properties["Address"]
-        else:
-            address = "<unknown>"
-
-        self.PrintNormal(address, device)
 
 
     def PropertiesChanged(self, interface, changed, invalidated, path):
         global device
         print('properties changed')
+        print('Interface: ' + interface)
         if interface != DEVICE1_IFACE:
             return
 
-        print("changed: " +changed)
-        print("invalidated: " + invalidated)
+        print("Invalidated:")
+        print(*invalidated, sep="\n")
 
-        if device != None:
-            device = dict(device)
-        else:
-            device = changed
-
-        if "Address" in device:
-            address = device["Address"]
-        else:
-            address = "<unknown>"
-
-        self.PrintNormal(address, device)
+        self.PrintNormal(changed)
 
 
 class ApiService(Service):
@@ -223,7 +209,7 @@ class PropertiesCharacteristic(Characteristic):
                     uri += propVal + '/'
                 print(uri)
                 req = requests.get(uri)
-                returnValue = propName + ';' + req.json().Value
+                returnValue = propName + ';' + req.json()['Value']
                 print('returnValue ' + returnValue)
                 self.notify(returnValue)
         except:
@@ -279,8 +265,8 @@ class CommandCharacteristic(Characteristic):
         try:
             print('CommandCharacteristic - onWriteRequest')
             cmdAndValue = bytes(value).decode()
+            print(cmdAndValue)
             cmdAndValuesArr = cmdAndValue.split(';')
-            print(cmdAndValuesArr)
             cmdName = cmdAndValuesArr[0]
             commandValue = None
             print(cmdName)
@@ -366,7 +352,7 @@ class PunchesCharacteristic(Characteristic):
     def getPunches(self):
         uri = URIPATH + 'punches/'
         req = requests.get(uri)
-        thePunches = req.json().Value
+        thePunches = req.json()['Value']
         thePunches = thePunches[len('punches;')]
         self.notify(thePunches)
         return True
@@ -429,7 +415,7 @@ class TestPunchesCharacteristic(Characteristic):
         includeAll = False
         uri = '/api/testpunches/gettestpunches/' + self._testBatchGuid + '/' + ("true" if includeAll else "false") + '/'
         resp = requests.get(uri)
-        self.notify(resp.json().Value)
+        self.notify(resp.json()['Value'])
 
     def addTestPunch(self):
         # add punch
@@ -472,11 +458,11 @@ class TestPunchesCharacteristic(Characteristic):
         except:
             print("exception")
 
-    def ReadValue(self):
+    def ReadValue(self, options):
         includeAll = True
         uri = '/api/testpunches/gettestpunches/' + self._testBatchGuid + '/' + ("true" if includeAll else "false") + '/'
         resp = requests.get(uri)
-        self.notify(resp.json().Value)
+        self.notify(resp.json()['Value'])
 
     def StartNotify(self):
         if self.notifying:

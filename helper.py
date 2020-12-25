@@ -15,8 +15,8 @@ class Helper:
     @staticmethod
     def getIP():
         result = subprocess.run(['hostname', '-I'], stdout=subprocess.PIPE, check=True)
-        hostname = result.stdout.decode('utf-8').trim()
-        return hostname
+        ip = result.stdout.decode('utf-8').strip()
+        return ip
 
 
     @staticmethod
@@ -123,7 +123,7 @@ class Helper:
         return 'OK'
 
     @staticmethod
-    def dropAllTables(commandName):
+    def dropAllTables():
         # stop WiRoc-Python service
         result = subprocess.run(['systemctl', 'stop', 'WiRocPython.service'], stdout=subprocess.PIPE)
         if result.returncode != 0:
@@ -132,7 +132,7 @@ class Helper:
 
         uri = URIPATH + 'dropalltables/'
         req = requests.get(uri)
-        retVal1 = req.json().Value
+        retVal1 = req.json()['Value']
 
         result = subprocess.run(['systemctl', 'start', 'WiRocPython.service'], stdout=subprocess.PIPE)
         if result.returncode != 0:
@@ -150,12 +150,15 @@ class Helper:
     def getBatteryLevel():
         hostname = socket.gethostname()
         if hostname == "chip" or hostname == "nanopiair":
+            print("chip or nanopi")
             result = subprocess.run(['/usr/sbin/i2cget', '-f', '-y', '0', '0x34', '0xb9'], stdout=subprocess.PIPE)
             if result.returncode != 0:
+                print('return code not 0')
                 errStr = result.stderr.decode('utf-8')
                 raise Exception("Error: " + errStr)
 
-            intPercent = int(result.stdout.decode('utf-8'))
+
+            intPercent = int(result.stdout.decode('utf-8').splitlines()[0], 0)
             print('Battery level - onReadRequest: value (dec)=' + str(intPercent))
             return str(intPercent)
         else:
@@ -173,15 +176,15 @@ class Helper:
 
         uri = URIPATH + 'apikey/'
         req = requests.get(uri)
-        apiKey = req.json().Value
+        apiKey = req.json()['Value']
 
         uri = URIPATH + 'webserverurl/'
         req = requests.get(uri)
-        serverUrl = req.json().Value
+        serverUrl = req.json()['Value']
 
         uri = URIPATH + 'webserverhost/'
         req = requests.get(uri)
-        serverHost = req.json().Value
+        serverHost = req.json()['Value']
 
         Helper.uploadLogArchive2(apiKey, zipFilePath, serverUrl, serverHost)
         return 'OK'
@@ -308,11 +311,11 @@ class Helper:
     @staticmethod
     def getAll():
         print('HttpHelper - getAll')
-        uri = URIPATH + 'dropalltables/'
+        uri = URIPATH + 'all/'
         req = requests.get(uri)
-        all = req.json().Value
+        all = req.json()['Value']
 
-        batteryPercent = Helper.getBatteryLevel('batterylevel')
-        ipAddress = Helper.getIP('getip')
+        batteryPercent = Helper.getBatteryLevel()
+        ipAddress = Helper.getIP()
         all = all.replace('%ipAddress%', ipAddress).replace('%batteryPercent%', batteryPercent)
         return all
