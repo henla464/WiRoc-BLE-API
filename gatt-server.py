@@ -210,7 +210,7 @@ class PropertiesCharacteristic(Characteristic):
                 print(uri)
                 req = requests.get(uri)
                 returnValue = propName + ';' + req.json()['Value']
-                print('returnValue ' + returnValue)
+                print('returnValue ' + str(returnValue))
                 self.notify(returnValue)
         except:
             e = sys.exc_info()[0]
@@ -302,6 +302,7 @@ class CommandCharacteristic(Characteristic):
                 replyString = Helper.getBatteryLevel()
 
             replyString = cmdName + ';' + replyString
+            print(replyString)
             self.notify(replyString)
         except:
             print("exception write value")
