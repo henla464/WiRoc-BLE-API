@@ -11,7 +11,8 @@ LE_ADVERTISEMENT_IFACE = 'org.bluez.LEAdvertisement1'
 LE_ADVERTISING_MANAGER_IFACE = 'org.bluez.LEAdvertisingManager1'
 
 class Advertisement(dbus.service.Object):
-    PATH_BASE = '/org/bluez/example/advertisement'
+    #PATH_BASE = '/org/bluez/example/advertisement'
+    PATH_BASE = '/se/wiroc/ble/api'
 
     def __init__(self, bus, index, advertising_type):
         self.path = self.PATH_BASE + str(index)

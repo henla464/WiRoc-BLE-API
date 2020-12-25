@@ -5,6 +5,7 @@ import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
 import uuid
+import signal
 from gatt import *
 from helper import Helper
 from advertisement import *
@@ -25,6 +26,10 @@ API_SERVICE = 'fb880900-4ab2-40a2-a8f0-14cc1c2e5608'
 URIPATH = 'http://127.0.0.1:5000/api/'
 
 device = None
+ad_manager =  None
+service_manager = None
+wiroc_application = None
+wiroc_advertisement = None
 
 class WiRocApplication(dbus.service.Object):
     """
@@ -56,6 +61,7 @@ class WiRocApplication(dbus.service.Object):
     def add_service(self, service):
         self.services.append(service)
 
+
     @dbus.service.method(DBUS_OM_IFACE, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
         response = {}
@@ -72,7 +78,7 @@ class WiRocApplication(dbus.service.Object):
 
         return response
 
-    def print_normal(address, properties):
+    def PrintNormal(self, address, properties):
         print("[ " + address + " ]")
 
         for key in properties.keys():
@@ -90,6 +96,10 @@ class WiRocApplication(dbus.service.Object):
     def InterfacesAdded(self, path, interfaces):
         global device
         print('interfaces added')
+        print('device1_iface: ' + DEVICE1_IFACE)
+        print('device1_iface: ' + interfaces)
+        if DEVICE1_IFACE in interfaces:
+            print('found')
         properties = interfaces[DEVICE1_IFACE]
         if not properties:
             return
@@ -456,7 +466,7 @@ class TestPunchesCharacteristic(Characteristic):
                 GLib.source_remove(self._timeoutSourceIdAddPunches)
                 self._timeoutSourceIdAddPunches = None
 
-            print("Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + intervalMs + " si number: " + self._siNo)
+            print("Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + str(intervalMs) + " si number: " + self._siNo)
             self._testBatchGuid = uuid.uuid4()
             self._timeoutSourceIdAddPunches = GLib.timeout_add(1000, self.addTestPunch)
         except:
@@ -540,54 +550,75 @@ def find_device1(bus):
     return None
 
 def main():
-    global mainloop
-
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-
-    bus = dbus.SystemBus()
-
-    adapter = find_adapter(bus)
-    global device
-    device = find_device1(bus)
-
-    if not adapter:
-        print('GattManager1 interface not found')
-        return
-
-    service_manager = dbus.Interface(
-            bus.get_object(BLUEZ_SERVICE_NAME, adapter),
-            GATT_MANAGER_IFACE)
-
-    app = WiRocApplication(bus)
-
-    ad_manager = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, adapter),
-                                LE_ADVERTISING_MANAGER_IFACE)
-
-    wiroc_advertisement = WiRocAdvertisement(bus, 0)
-
-    mainloop = GLib.MainLoop()
-
-
     try:
-        path = wiroc_advertisement.get_path()
-        print('Path: ' + path)
-        print('Registering advertisement')
-        ad_manager.RegisterAdvertisement(wiroc_advertisement.get_path(), {},
-                                     reply_handler=register_ad_cb,
-                                     error_handler=register_ad_error_cb)
-        print('After Registering advertisement')
-    except:
-        print('Advertisement exception')
+        global mainloop
+
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
+        bus = dbus.SystemBus()
+
+        adapter = find_adapter(bus)
+        global device
+        device = find_device1(bus)
+
+        if not adapter:
+            print('GattManager1 interface not found')
+            return
+
+        global service_manager
+        service_manager = dbus.Interface(
+                bus.get_object(BLUEZ_SERVICE_NAME, adapter),
+                GATT_MANAGER_IFACE)
+
+        global wiroc_application
+        wiroc_application = WiRocApplication(bus)
+
+        global ad_manager
+        ad_manager = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, adapter),
+                                    LE_ADVERTISING_MANAGER_IFACE)
+
+        global wiroc_advertisement
+        wiroc_advertisement = WiRocAdvertisement(bus, 0)
+
+        mainloop = GLib.MainLoop()
+
+
+        try:
+            path = wiroc_advertisement.get_path()
+            print('Path: ' + path)
+            print('Registering advertisement')
+            ad_manager.RegisterAdvertisement(wiroc_advertisement.get_path(), {},
+                                         reply_handler=register_ad_cb,
+                                         error_handler=register_ad_error_cb)
+            print('After Registering advertisement')
+        except:
+            print('Advertisement exception')
+            ad_manager.UnregisterAdvertisement(wiroc_advertisement)
+            print('Advertisement unregistered')
+            dbus.service.Object.remove_from_connection(wiroc_advertisement)
+
+        print('Registering GATT application...')
+        service_manager.RegisterApplication(wiroc_application.get_path(), {},
+                                        reply_handler=register_app_cb,
+                                        error_handler=register_app_error_cb)
+
+
+
+
+        mainloop.run()
+        #ad_manager.UnregisterAdvertisement(wiroc_advertisement)
+        #service_manager.UnregisterApplication(app)
+        #print('Advertisement unregistered')
+        #dbus.service.Object.remove_from_connection(wiroc_advertisement)
+    except (KeyboardInterrupt, SystemExit):
         ad_manager.UnregisterAdvertisement(wiroc_advertisement)
-        print('Advertisement unregistered')
         dbus.service.Object.remove_from_connection(wiroc_advertisement)
+        service_manager.UnregisterApplication(wiroc_application)
+        mainloop.quit()
+        print("KeyboardInterrupt")
 
-    print('Registering GATT application...')
-    service_manager.RegisterApplication(app.get_path(), {},
-                                    reply_handler=register_app_cb,
-                                    error_handler=register_app_error_cb)
-
-    mainloop.run()
 
 if __name__ == '__main__':
     main()
+
+
