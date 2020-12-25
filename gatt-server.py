@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import requests
-import dbus
 import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
@@ -9,13 +8,7 @@ import uuid
 from gatt import *
 from helper import Helper
 from advertisement import *
-
-
-import array
-try:
-  from gi.repository import GObject
-except ImportError:
-  import gobject as GObject
+from gi.repository import GLib
 import sys
 
 from random import randint
@@ -25,10 +18,13 @@ mainloop = None
 BLUEZ_SERVICE_NAME = 'org.bluez'
 GATT_MANAGER_IFACE = 'org.bluez.GattManager1'
 DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
+DEVICE1_IFACE = 'org.bluez.Device1'
 
 API_SERVICE = 'fb880900-4ab2-40a2-a8f0-14cc1c2e5608'
 
-URIPATH = 'https://127.0.0.1:5000/api/'
+URIPATH = 'http://127.0.0.1:5000/api/'
+
+device = None
 
 class WiRocApplication(dbus.service.Object):
     """
@@ -39,6 +35,20 @@ class WiRocApplication(dbus.service.Object):
         self.services = []
         dbus.service.Object.__init__(self, bus, self.path)
         self.add_service(ApiService(bus, 0))
+
+        bus.add_signal_receiver(self.InterfacesAdded,
+                                dbus_interface="org.freedesktop.DBus.ObjectManager",
+                                signal_name="InterfacesAdded")
+
+        bus.add_signal_receiver(self.InterfacesRemoved,
+                                dbus_interface="org.freedesktop.DBus.ObjectManager",
+                                signal_name="InterfacesRemoved")
+
+        bus.add_signal_receiver(self.PropertiesChanged,
+                                dbus_interface="org.freedesktop.DBus.Properties",
+                                signal_name="PropertiesChanged",
+                                arg0="org.bluez.Device1",
+                                path_keyword="path")
 
     def get_path(self):
         return dbus.ObjectPath(self.path)
@@ -61,6 +71,80 @@ class WiRocApplication(dbus.service.Object):
                     response[desc.get_path()] = desc.get_properties()
 
         return response
+
+    def print_normal(address, properties):
+        print("[ " + address + " ]")
+
+        for key in properties.keys():
+            value = properties[key]
+            if type(value) is dbus.String:
+                value = value.encode('ascii', 'replace')
+            if (key == "Class"):
+                print("    %s = 0x%06x" % (key, value))
+            else:
+                print("    %s = %s" % (key, value))
+
+        print()
+        properties["Logged"] = True
+
+    def InterfacesAdded(self, path, interfaces):
+        global device
+        print('interfaces added')
+        properties = interfaces[DEVICE1_IFACE]
+        if not properties:
+            return
+
+        if device != None:
+            device = dict(device.items() + properties.items())
+        else:
+            device = properties
+
+        if "Address" in device:
+            address = properties["Address"]
+        else:
+            address = "<unknown>"
+
+        self.PrintNormal(address, device)
+
+
+    def InterfacesRemoved(self, path, interfaces):
+        global device
+        print('interfaces removed')
+        properties = interfaces[DEVICE1_IFACE]
+        if not properties:
+            return
+
+        if device != None:
+            device = dict(device.items() + properties.items())
+        else:
+            device = properties
+
+        if "Address" in device:
+            address = properties["Address"]
+        else:
+            address = "<unknown>"
+
+        self.PrintNormal(address, device)
+
+
+    def PropertiesChanged(self, interface, changed, invalidated, path):
+        global device
+        print('properties changed')
+        if interface != DEVICE1_IFACE:
+            return
+
+
+        if device != None:
+            device = dict(device.items() + properties.items())
+        else:
+            device = changed
+
+        if "Address" in device:
+            address = device["Address"]
+        else:
+            address = "<unknown>"
+
+        self.PrintNormal(address, device)
 
 
 class ApiService(Service):
@@ -283,14 +367,14 @@ class PunchesCharacteristic(Characteristic):
         uri = URIPATH + 'sendtoblenoenabled/1'
         req = requests.get(uri)
         self.notifying = True
-        self._timeoutSourceId = GObject.timeout_add(1000, self.getPunches())
+        self._timeoutSourceId = GLib.timeout_add(1000, self.getPunches())
 
     def StopNotify(self):
         if not self.notifying:
             print('PunchesCharacteristic - Not notifying, nothing to do')
             return
         print('PunchesCharacteristic - Stop notifying')
-        GObject.source_remove(self._timeoutSourceId)
+        GLib.source_remove(self._timeoutSourceId)
         uri = URIPATH + 'sendtoblenoenabled/0'
         req = requests.get(uri)
         self.notifying = False
@@ -330,7 +414,7 @@ class TestPunchesCharacteristic(Characteristic):
                 { 'Value': reply }, [])
 
     def getTestPunches(self):
-        includeAll = false
+        includeAll = False
         uri = '/api/testpunches/gettestpunches/' + self._testBatchGuid + '/' + ("true" if includeAll else "false") + '/'
         resp = requests.get(uri)
         self.notify(resp.json().Value)
@@ -347,7 +431,7 @@ class TestPunchesCharacteristic(Characteristic):
         if self._noOfPunchesAdded >= self._noOfPunchesToAdd:
             print("addTestPunchInterval cleared")
             if self._timeoutSourceIdAddPunches != None:
-                GObject.source_remove(self._timeoutSourceIdAddPunches)
+                GLib.source_remove(self._timeoutSourceIdAddPunches)
                 self._timeoutSourceIdAddPunches = None
 
     def WriteValue(self,value, options):
@@ -359,22 +443,22 @@ class TestPunchesCharacteristic(Characteristic):
             self._noOfPunchesAdded = 0
             intervalMs = 1000
             if noOfPunchesAndIntervalAndSINo.split(';').length > 1:
-                intervalMs = parseInt(noOfPunchesAndIntervalAndSINo.split(';')[1])
+                intervalMs = int(noOfPunchesAndIntervalAndSINo.split(';')[1])
             if noOfPunchesAndIntervalAndSINo.split(';').length > 2:
                 self._siNo = noOfPunchesAndIntervalAndSINo.split(';')[2]
 
             if self._timeoutSourceIdGetPunches != None:
-                GObject.source_remove(self._timeoutSourceIdGetPunches)
+                GLib.source_remove(self._timeoutSourceIdGetPunches)
                 self._timeoutSourceIdGetPunches = None
             if self._timeoutSourceIdAddPunches != None:
-                GObject.source_remove(self._timeoutSourceIdAddPunches)
+                GLib.source_remove(self._timeoutSourceIdAddPunches)
                 self._timeoutSourceIdAddPunches = None
 
             print("Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + intervalMs + " si number: " + self._siNo)
             self._testBatchGuid = uuid.uuid4()
-            self._timeoutSourceIdAddPunches = GObject.timeout_add(1000, self.addTestPunch)
-        except ex:
-            print("exception " + str(ex))
+            self._timeoutSourceIdAddPunches = GLib.timeout_add(1000, self.addTestPunch)
+        except:
+            print("exception")
 
     def ReadValue(self):
         includeAll = True
@@ -388,15 +472,15 @@ class TestPunchesCharacteristic(Characteristic):
             return
         print('Start notifying')
         self.notifying = True
-        self._timeoutSourceIdGetPunches = GObject.timeout_add(1000, self.getPunches())
+        self._timeoutSourceIdGetPunches = GLib.timeout_add(1000, self.getPunches())
 
     def StopNotify(self):
         if not self.notifying:
             print('Not notifying, nothing to do')
             return
         print('Stop notifying')
-        GObject.source_remove(self._timeoutSourceIdGetPunches)
-        GObject.source_remove(self._timeoutSourceIdAddPunches)
+        GLib.source_remove(self._timeoutSourceIdGetPunches)
+        GLib.source_remove(self._timeoutSourceIdAddPunches)
         self.notifying = False
 
 
@@ -412,8 +496,8 @@ class WiRocAdvertisement(Advertisement):
 
         uri = URIPATH + 'wirocdevicename/'
         print(uri)
-        req = requests.get(uri)
-        self.add_local_name(req.json().Value)
+        #req = requests.get(uri)
+        #self.add_local_name(req.json()['Value'])
         self.include_tx_power = True
         #self.add_data(0x26, [0x01, 0x01, 0x00])
 
@@ -443,6 +527,15 @@ def find_adapter(bus):
 
     return None
 
+def find_device1(bus):
+    om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'), DBUS_OM_IFACE)
+    objects = om.GetManagedObjects()
+    for path, interfaces in objects.iteritems():
+        if "org.bluez.Device1" in interfaces:
+            return interfaces["org.bluez.Device1"]
+
+    return None
+
 def main():
     global mainloop
 
@@ -451,6 +544,9 @@ def main():
     bus = dbus.SystemBus()
 
     adapter = find_adapter(bus)
+    global device
+    device = find_device1(bus)
+
     if not adapter:
         print('GattManager1 interface not found')
         return
@@ -466,9 +562,7 @@ def main():
 
     wiroc_advertisement = WiRocAdvertisement(bus, 0)
 
-    mainloop = GObject.MainLoop()
-
-
+    mainloop = GLib.MainLoop()
 
 
     try:
