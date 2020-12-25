@@ -95,7 +95,7 @@ class WiRocApplication(dbus.service.Object):
             return
 
         if device != None:
-            device = dict(device.items() + properties.items())
+            device = dict(device, **properties)
         else:
             device = properties
 
@@ -115,7 +115,7 @@ class WiRocApplication(dbus.service.Object):
             return
 
         if device != None:
-            device = dict(device.items() + properties.items())
+            device = dict(device, **properties)
         else:
             device = properties
 
@@ -133,9 +133,11 @@ class WiRocApplication(dbus.service.Object):
         if interface != DEVICE1_IFACE:
             return
 
+        print("changed: " +changed)
+        print("invalidated: " + invalidated)
 
         if device != None:
-            device = dict(device.items() + properties.items())
+            device = dict(device)
         else:
             device = changed
 
@@ -269,12 +271,12 @@ class CommandCharacteristic(Characteristic):
             cmdAndValue = bytes(value).decode()
             cmdAndValuesArr = cmdAndValue.split(';')
             print(cmdAndValuesArr)
-            commandName = cmdAndValuesArr[0]
+            cmdName = cmdAndValuesArr[0]
             commandValue = None
             print(cmdName)
             if len(cmdAndValuesArr) > 1:
                 commandValue = cmdAndValuesArr[1]
-            print('test')
+            print('writevalue 2')
 
             replyString = ''
 
@@ -303,10 +305,10 @@ class CommandCharacteristic(Characteristic):
             elif cmdName =='batterylevel':
                 replyString = Helper.getBatteryLevel()
 
-            replyString = commandName + ';' + replyString
+            replyString = cmdName + ';' + replyString
             self.notify(replyString)
-        except ex:
-            print("exception " + str(ex))
+        except:
+            print("exception write value")
 
     def StartNotify(self):
         if self.notifying:
@@ -498,6 +500,7 @@ class WiRocAdvertisement(Advertisement):
         print(uri)
         #req = requests.get(uri)
         #self.add_local_name(req.json()['Value'])
+        self.add_local_name('Test')
         self.include_tx_power = True
         #self.add_data(0x26, [0x01, 0x01, 0x00])
 
@@ -530,7 +533,7 @@ def find_adapter(bus):
 def find_device1(bus):
     om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'), DBUS_OM_IFACE)
     objects = om.GetManagedObjects()
-    for path, interfaces in objects.iteritems():
+    for path, interfaces in objects.items():
         if "org.bluez.Device1" in interfaces:
             return interfaces["org.bluez.Device1"]
 

@@ -6,6 +6,9 @@ import json
 import socket
 import os, sys
 from datetime import datetime
+from subprocess import Popen
+
+URIPATH = 'http://127.0.0.1:5000/api/'
 
 class Helper:
 
@@ -91,7 +94,7 @@ class Helper:
 
         wifiNetworks = result.stdout.decode('utf-8').splitlines()[0:-1] # remove last empty element
         wifiNetworks2 = [netName[40:].strip() for netName in wifiNetworks]
-        wifiDataList = wifiNetworks2.join('\n')
+        wifiDataList = '\n'.join(wifiNetworks2)
         return wifiDataList
 
     @staticmethod
@@ -138,7 +141,7 @@ class Helper:
 
         if retVal1 == 'OK':
             # start WiRoc-Python service
-            return ('OK', commandName)
+            return 'OK'
         else:
             # start WiRoc-Python service
             raise Exception("Error starting WiRocPython service")
