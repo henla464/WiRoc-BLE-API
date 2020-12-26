@@ -430,10 +430,9 @@ class TestPunchesCharacteristic(Characteristic):
             includeAll = False
             uri = URIPATH + 'testpunches/gettestpunches/' + str(self._testBatchGuid) + '/' + ("true" if includeAll else "false") + '/'
             resp = requests.get(uri)
-            replyString = resp.json()['punches']
+            replyString = resp.text
             print(replyString)
-            replyString2 = json.dumps(replyString)
-            self.notify(replyString2)
+            self.notify(replyString)
         except:
             print('exception in getTestPunches')
         finally:
