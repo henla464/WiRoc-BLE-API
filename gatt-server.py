@@ -178,17 +178,19 @@ class PropertiesCharacteristic(Characteristic):
         self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Write a new property value, or read one'))
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
         self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
-        self.notifying = False
+        self._nofitying = False
 
 
     def notify(self, replyString):
-        if not self.notifying:
+        if not self._nofitying:
             return
-        replyAsByteArray = replyString.encode()
-        reply = dbus.ByteArray(replyAsByteArray)
-        self.PropertiesChanged(
-                GATT_CHRC_IFACE,
-                { 'Value': reply }, [])
+        reply = replyString.encode()
+        while len(reply) > 0:
+            subReply = reply[0:512]
+            reply = reply[512:]
+            self.PropertiesChanged(
+                    GATT_CHRC_IFACE,
+                    { 'Value': dbus.ByteArray(subReply) }, [])
 
 
     def WriteValue(self,value, options):
@@ -219,19 +221,19 @@ class PropertiesCharacteristic(Characteristic):
 
 
     def StartNotify(self):
-        if self.notifying:
+        if self._nofitying:
             print('Prop: Already notifying, nothing to do')
             return
         print('Start notifying')
-        self.notifying = True
+        self._nofitying = True
 
 
     def StopNotify(self):
-        if not self.notifying:
+        if not self._nofitying:
             print('Prop: Not notifying, nothing to do')
             return
         print('Stop notifying')
-        self.notifying = False
+        self._nofitying = False
 
 
 #---- COMMAND -----
@@ -250,16 +252,18 @@ class CommandCharacteristic(Characteristic):
         self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Execute a command'))
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
         self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
-        self.notifying = False
+        self._nofitying = False
 
     def notify(self, replyString):
-        if not self.notifying:
+        if not self._nofitying:
             return
-        replyAsByteArray = replyString.encode()
-        reply = dbus.ByteArray(replyAsByteArray)
-        self.PropertiesChanged(
-                GATT_CHRC_IFACE,
-                { 'Value': reply }, [])
+        reply = replyString.encode()
+        while len(reply) > 0:
+            subReply = reply[0:512]
+            reply = reply[512:]
+            self.PropertiesChanged(
+                    GATT_CHRC_IFACE,
+                    { 'Value': dbus.ByteArray(subReply) }, [])
 
     def WriteValue(self, value, options):
         try:
@@ -308,18 +312,18 @@ class CommandCharacteristic(Characteristic):
             print("exception write value")
 
     def StartNotify(self):
-        if self.notifying:
+        if self._nofitying:
             print('Already notifying, nothing to do')
             return
         print('Start notifying')
-        self.notifying = True
+        self._nofitying = True
 
     def StopNotify(self):
-        if not self.notifying:
+        if not self._nofitying:
             print('Not notifying, nothing to do')
             return
         print('Stop notifying')
-        self.notifying = False
+        self._nofitying = False
 
 #---- PUNCHES -----
 class PunchesCharacteristic(Characteristic):
@@ -338,17 +342,19 @@ class PunchesCharacteristic(Characteristic):
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
         self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
 
-        self.notifying = False
+        self._nofitying = False
         self._timeoutSourceId = None
 
     def notify(self, replyString):
-        if not self.notifying:
+        if not self._nofitying:
             return
-        replyAsByteArray = replyString.encode()
-        reply = dbus.ByteArray(replyAsByteArray)
-        self.PropertiesChanged(
-                GATT_CHRC_IFACE,
-                { 'Value': reply }, [])
+        reply = replyString.encode()
+        while len(reply) > 0:
+            subReply = reply[0:512]
+            reply = reply[512:]
+            self.PropertiesChanged(
+                    GATT_CHRC_IFACE,
+                    { 'Value': dbus.ByteArray(subReply) }, [])
 
     def getPunches(self):
         uri = URIPATH + 'punches/'
@@ -359,24 +365,24 @@ class PunchesCharacteristic(Characteristic):
         return True
 
     def StartNotify(self):
-        if self.notifying:
+        if self._nofitying:
             print('PunchesCharacteristic - Already notifying, nothing to do')
             return
         print('PunchesCharacteristic - Start notifying')
         uri = URIPATH + 'sendtoblenoenabled/1'
         req = requests.get(uri)
-        self.notifying = True
+        self._nofitying = True
         self._timeoutSourceId = GLib.timeout_add(1000, self.getPunches())
 
     def StopNotify(self):
-        if not self.notifying:
+        if not self._nofitying:
             print('PunchesCharacteristic - Not notifying, nothing to do')
             return
         print('PunchesCharacteristic - Stop notifying')
         GLib.source_remove(self._timeoutSourceId)
         uri = URIPATH + 'sendtoblenoenabled/0'
         req = requests.get(uri)
-        self.notifying = False
+        self._nofitying = False
 
 #---- TESTPUNCHES -----
 class TestPunchesCharacteristic(Characteristic):
@@ -404,13 +410,15 @@ class TestPunchesCharacteristic(Characteristic):
         self._noOfPunchesAdded = 0
 
     def notify(self, replyString):
-        if not self._notifying:
+        if not self._nofitying:
             return
-        replyAsByteArray = replyString.encode()
-        reply = dbus.ByteArray(replyAsByteArray)
-        self.PropertiesChanged(
-                GATT_CHRC_IFACE,
-                { 'Value': reply }, [])
+        reply = replyString.encode()
+        while len(reply) > 0:
+            subReply = reply[0:512]
+            reply = reply[512:]
+            self.PropertiesChanged(
+                    GATT_CHRC_IFACE,
+                    { 'Value': dbus.ByteArray(subReply) }, [])
 
     def getTestPunches(self):
         print('getTestPunches')

@@ -49,21 +49,21 @@ class Helper:
             errStr = result.stderr.decode('utf-8')
             raise Exception("Error: " + errStr)
 
-        statusServices.append({'Name': 'WiRocPython', 'Status': result.stdout.decode('utf-8').trim('\n')})
+        statusServices.append({'Name': 'WiRocPython', 'Status': result.stdout.decode('utf-8').strip('\n')})
 
         result = subprocess.run(['systemctl', 'is-active', 'WiRocPythonWS.service'], stdout=subprocess.PIPE)
         if result.returncode != 0:
             errStr = result.stderr.decode('utf-8')
             raise Exception("Error: " + errStr)
 
-        statusServices.append({'Name': 'WiRocPythonWS', 'Status': result.stdout.decode('utf-8').trim('\n')})
+        statusServices.append({'Name': 'WiRocPythonWS', 'Status': result.stdout.decode('utf-8').strip('\n')})
 
         result = subprocess.run(['systemctl', 'is-active', 'blink.service'], stdout=subprocess.PIPE)
         if result.returncode != 0:
             errStr = result.stderr.decode('utf-8')
             raise Exception("Error: " + errStr)
 
-        statusServices.append({'Name': 'WiRocMonitor', 'Status': result.stdout.decode('utf-8').trim('\n')})
+        statusServices.append({'Name': 'WiRocMonitor', 'Status': result.stdout.decode('utf-8').strip('\n')})
         jsonStr = json.dumps({'services': statusServices })
         return jsonStr
 
