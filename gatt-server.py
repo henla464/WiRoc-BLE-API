@@ -5,7 +5,7 @@ import dbus.exceptions
 import dbus.mainloop.glib
 import dbus.service
 import uuid
-import signal
+import json
 from gatt import *
 from helper import Helper
 from advertisement import *
@@ -209,7 +209,7 @@ class PropertiesCharacteristic(Characteristic):
                     uri += propVal + '/'
                 print(uri)
                 req = requests.get(uri)
-                returnValue = propName + ';' + req.json()['Value']
+                returnValue = propName + ';' + str(req.json()['Value']) + '|'
                 print('returnValue ' + str(returnValue))
                 self.notify(returnValue)
         except:
@@ -220,7 +220,7 @@ class PropertiesCharacteristic(Characteristic):
 
     def StartNotify(self):
         if self.notifying:
-            print('Already notifying, nothing to do')
+            print('Prop: Already notifying, nothing to do')
             return
         print('Start notifying')
         self.notifying = True
@@ -228,7 +228,7 @@ class PropertiesCharacteristic(Characteristic):
 
     def StopNotify(self):
         if not self.notifying:
-            print('Not notifying, nothing to do')
+            print('Prop: Not notifying, nothing to do')
             return
         print('Stop notifying')
         self.notifying = False
@@ -395,7 +395,7 @@ class TestPunchesCharacteristic(Characteristic):
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
         self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
 
-        self.notifying = False
+        self._notifying = False
         self._timeoutSourceIdGetPunches = None
         self._timeoutSourceIdAddPunches = None
         self._testBatchGuid = None
@@ -404,7 +404,7 @@ class TestPunchesCharacteristic(Characteristic):
         self._noOfPunchesAdded = 0
 
     def notify(self, replyString):
-        if not self.notifying:
+        if not self._notifying:
             return
         replyAsByteArray = replyString.encode()
         reply = dbus.ByteArray(replyAsByteArray)
@@ -413,42 +413,62 @@ class TestPunchesCharacteristic(Characteristic):
                 { 'Value': reply }, [])
 
     def getTestPunches(self):
-        includeAll = False
-        uri = '/api/testpunches/gettestpunches/' + self._testBatchGuid + '/' + ("true" if includeAll else "false") + '/'
-        resp = requests.get(uri)
-        self.notify(resp.json()['Value'])
+        print('getTestPunches')
+        try:
+            if self._testBatchGuid == None:
+                print("self._testBatchGuid is None")
+                return True
+
+            includeAll = False
+            uri = URIPATH + 'testpunches/gettestpunches/' + str(self._testBatchGuid) + '/' + ("true" if includeAll else "false") + '/'
+            resp = requests.get(uri)
+            replyString = resp.json()['punches']
+            print(replyString)
+            replyString2 = json.dumps(replyString)
+            self.notify(replyString2)
+        except:
+            print('exception in getTestPunches')
+        finally:
+            return True
 
     def addTestPunch(self):
-        # add punch
-        print("addTestPunch")
+        try:
+            # add punch
+            print("addTestPunch")
 
-        uri = '/api/testpunches/addtestpunch/' + self._testBatchGuid + '/' + self._siNo + '/'
-        resp = requests.get(uri)
-        print(resp.json())
+            uri = URIPATH + 'testpunches/addtestpunch/' + str(self._testBatchGuid) + '/' + self._siNo + '/'
+            resp = requests.get(uri)
+            print(resp.json())
 
-        self._noOfPunchesAdded = self._noOfPunchesAdded + 1
-        if self._noOfPunchesAdded >= self._noOfPunchesToAdd:
-            print("addTestPunchInterval cleared")
-            if self._timeoutSourceIdAddPunches != None:
-                GLib.source_remove(self._timeoutSourceIdAddPunches)
-                self._timeoutSourceIdAddPunches = None
+            self._noOfPunchesAdded = self._noOfPunchesAdded + 1
+            if self._noOfPunchesAdded >= self._noOfPunchesToAdd:
+                print("addTestPunchInterval cleared")
+                if self._timeoutSourceIdAddPunches != None:
+                    GLib.source_remove(self._timeoutSourceIdAddPunches)
+                    self._timeoutSourceIdAddPunches = None
+                return False
+        except:
+            print('exception in addTestPunch')
+        finally:
+            return True
 
     def WriteValue(self,value, options):
         try:
             print('TestPunchesCharacteristic - onWriteRequest')
 
-            noOfPunchesAndIntervalAndSINo = value.decode()
+            noOfPunchesAndIntervalAndSINo = bytes(value).decode()
+            print(noOfPunchesAndIntervalAndSINo)
             self._noOfPunchesToAdd = int(noOfPunchesAndIntervalAndSINo.split(';')[0])
             self._noOfPunchesAdded = 0
             intervalMs = 1000
-            if noOfPunchesAndIntervalAndSINo.split(';').length > 1:
+            if len(noOfPunchesAndIntervalAndSINo.split(';')) > 1:
                 intervalMs = int(noOfPunchesAndIntervalAndSINo.split(';')[1])
-            if noOfPunchesAndIntervalAndSINo.split(';').length > 2:
+            if len(noOfPunchesAndIntervalAndSINo.split(';')) > 2:
                 self._siNo = noOfPunchesAndIntervalAndSINo.split(';')[2]
 
-            if self._timeoutSourceIdGetPunches != None:
-                GLib.source_remove(self._timeoutSourceIdGetPunches)
-                self._timeoutSourceIdGetPunches = None
+            #if self._timeoutSourceIdGetPunches != None:
+            #    GLib.source_remove(self._timeoutSourceIdGetPunches)
+            #    self._timeoutSourceIdGetPunches = None
             if self._timeoutSourceIdAddPunches != None:
                 GLib.source_remove(self._timeoutSourceIdAddPunches)
                 self._timeoutSourceIdAddPunches = None
@@ -461,26 +481,30 @@ class TestPunchesCharacteristic(Characteristic):
 
     def ReadValue(self, options):
         includeAll = True
-        uri = '/api/testpunches/gettestpunches/' + self._testBatchGuid + '/' + ("true" if includeAll else "false") + '/'
+        uri = URIPATH + 'testpunches/gettestpunches/' + self._testBatchGuid + '/' + ("true" if includeAll else "false") + '/'
         resp = requests.get(uri)
         self.notify(resp.json()['Value'])
 
     def StartNotify(self):
-        if self.notifying:
-            print('Already notifying, nothing to do')
+        if self._notifying:
+            print('TestPunches: Already notifying, nothing to do')
             return
-        print('Start notifying')
-        self.notifying = True
-        self._timeoutSourceIdGetPunches = GLib.timeout_add(1000, self.getPunches())
+        print('TestPunches: Start notifying')
+        self._notifying = True
+        self._timeoutSourceIdGetPunches = GLib.timeout_add(1000, self.getTestPunches)
 
     def StopNotify(self):
-        if not self.notifying:
-            print('Not notifying, nothing to do')
+        if not self._notifying:
+            print('TestPunches: Not notifying, nothing to do')
             return
-        print('Stop notifying')
+        print('TestPunches: Stop notifying START')
         GLib.source_remove(self._timeoutSourceIdGetPunches)
-        GLib.source_remove(self._timeoutSourceIdAddPunches)
-        self.notifying = False
+        self._timeoutSourceIdGetPunches = None
+        if self._timeoutSourceIdAddPunches != None:
+            GLib.source_remove(self._timeoutSourceIdAddPunches)
+            self._timeoutSourceIdAddPunches = None
+        self._notifying = False
+        print('TestPunches: Stop notifying END')
 
 
 class WiRocAdvertisement(Advertisement):
@@ -495,9 +519,9 @@ class WiRocAdvertisement(Advertisement):
 
         uri = URIPATH + 'wirocdevicename/'
         print(uri)
-        #req = requests.get(uri)
-        #self.add_local_name(req.json()['Value'])
-        self.add_local_name('Test')
+        req = requests.get(uri)
+        self.add_local_name(req.json()['Value'])
+        #self.add_local_name('Test')
         self.include_tx_power = True
         #self.add_data(0x26, [0x01, 0x01, 0x00])
 
@@ -593,6 +617,7 @@ def main():
 
 
         mainloop.run()
+        print("after mainLoop")
         #ad_manager.UnregisterAdvertisement(wiroc_advertisement)
         #service_manager.UnregisterApplication(app)
         #print('Advertisement unregistered')
@@ -601,8 +626,9 @@ def main():
         ad_manager.UnregisterAdvertisement(wiroc_advertisement)
         dbus.service.Object.remove_from_connection(wiroc_advertisement)
         service_manager.UnregisterApplication(wiroc_application)
+        dbus.service.Object.remove_from_connection(wiroc_application)
         mainloop.quit()
-        print("KeyboardInterrupt")
+        print("KeyboardInterrupt/SystemExit")
 
 
 if __name__ == '__main__':
