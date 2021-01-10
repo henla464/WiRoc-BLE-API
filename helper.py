@@ -230,8 +230,8 @@ class Helper:
         print("current workdir: " + cwd)
         logfile = '../installWiRocPython.log'
         with open(os.devnull, 'r+b', 0) as DEVNULL:
-            with open(logfile, 'a', 0) as out:
-                p = Popen(['/usr/bin/python35', '../installWiRocPython.sh', version],
+            with open(logfile, 'a') as out:
+                p = Popen(['../installWiRocPython.sh %s' % version], shell=True,
                       stdin=DEVNULL, stdout=out, stderr=out, close_fds=True)
 
         #time.sleep(1)  # give it a second to launch

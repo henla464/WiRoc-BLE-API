@@ -233,6 +233,10 @@ class PropertiesCharacteristic(Characteristic):
                 returnValue = propName + ';' + str(req.json()['Value']) + '|'
                 print('returnValue ' + str(returnValue))
                 self.notify(returnValue)
+                global wiroc_advertisement
+                wiroc_advertisement.updateLocalName()
+                wiroc_advertisement.updateAdvertisement()
+
         except:
             e = sys.exc_info()[0]
             print("exception " + str(e))
@@ -582,13 +586,24 @@ class WiRocAdvertisement(Advertisement):
         #self.add_manufacturer_data(0xffff, [0x00, 0x01, 0x02, 0x03, 0x04])
         #self.add_service_data('9999', [0x00, 0x01, 0x02])
 
+        self.updateLocalName()
+        #self.add_local_name('Test')
+        self.include_tx_power = True
+        #self.add_data(0x26, [0x01, 0x01, 0x00])
+
+    def updateLocalName(self):
         uri = URIPATH + 'wirocdevicename/'
         print(uri)
         req = requests.get(uri)
         self.add_local_name(req.json()['Value'])
-        #self.add_local_name('Test')
-        self.include_tx_power = True
-        #self.add_data(0x26, [0x01, 0x01, 0x00])
+
+    def updateAdvertisement(self):
+        global ad_manager
+        ad_manager.UnregisterAdvertisement(self)
+        ad_manager.RegisterAdvertisement(self.get_path(), {},
+                                         reply_handler=register_ad_cb,
+                                         error_handler=register_ad_error_cb)
+        print("Reregister advertisment after local name update")
 
 
 def register_ad_cb():
@@ -698,5 +713,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
