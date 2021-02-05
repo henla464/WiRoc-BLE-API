@@ -158,9 +158,9 @@ class ApiService(Service):
     def __init__(self, bus, index):
         Service.__init__(self, bus, index, self.SERVICE_UUID, True)
         self.add_characteristic(PropertiesCharacteristic(bus, 0, self))
-        self.add_characteristic(CommandCharacteristic(bus, 1, self))
-        self.add_characteristic(PunchesCharacteristic(bus, 2, self))
-        self.add_characteristic(TestPunchesCharacteristic(bus, 3, self))
+        #self.add_characteristic(CommandCharacteristic(bus, 1, self))
+        self.add_characteristic(PunchesCharacteristic(bus, 1, self))
+        self.add_characteristic(TestPunchesCharacteristic(bus, 2, self))
 
 
 #---- PROPERTIES -----
@@ -216,23 +216,46 @@ class PropertiesCharacteristic(Characteristic):
                 self._lastWrittenValue = self._lastWrittenValue + propertyNameAndValues
                 return
 
-            thisFnCallPropertyNameAndValuesToWriteArr = propertyNameAndValues.split('|')
-            print(thisFnCallPropertyNameAndValuesToWriteArr)
-            for propAndVal in thisFnCallPropertyNameAndValuesToWriteArr:
-                propAndValArr = propAndVal.split(';')
-                propName = propAndValArr[0]
-                propVal = None
-                print(propName)
-                uri = URIPATH + propName + '/'
-                if len(propAndValArr) > 1:
-                    propVal = propAndValArr[1]
-                if (propVal != None and len(propVal) > 0):
-                    uri += propVal + '/'
-                print(uri)
-                req = requests.get(uri)
-                returnValue = propName + ';' + str(req.json()['Value']) + '|'
-                print('returnValue ' + str(returnValue))
-                self.notify(returnValue)
+            #thisFnCallPropertyNameAndValuesToWriteArr = propertyNameAndValues.split('|')
+            #print(thisFnCallPropertyNameAndValuesToWriteArr)
+            #for propAndVal in thisFnCallPropertyNameAndValuesToWriteArr:
+            propAndValArr = propertyNameAndValues.split('\t')
+            propName = propAndValArr[0]
+            propVal = None
+            print(propName)
+
+            # Handle some special cases
+            if propName =='all':
+                if propVal != None:
+                    # the very first call will be to fetch 'all', this call should include
+                    # the chunklength ie. the number of bytes that can be sent at a time
+                    chunkLength = int(propVal)
+                    print("chunklength: " + str(chunkLength))
+            elif propName == 'upgradewirocpython':
+                # Use helper function and then return instead of calling web service
+                replyString = Helper.upgradeWiRocPython(propVal)
+                print(propName + '\t' + replyString)
+                self.notify(propName + '\t' + replyString)
+                return
+            elif propName == 'upgradewirocble':
+                # Use helper function and then return instead of calling web service
+                replyString = Helper.upgradeWiRocBLE(propVal)
+                print(propName + '\t' + replyString)
+                self.notify(propName + '\t' + replyString)
+                return
+
+            uri = URIPATH + propName + '/'
+            if len(propAndValArr) > 1:
+                propVal = propAndValArr[1]
+            if (propVal != None and len(propVal) > 0):
+                uri += propVal + '/'
+            print(uri)
+            req = requests.get(uri)
+            returnValue = propName + '\t' + str(req.json()['Value'])
+            print('returnValue ' + str(returnValue))
+            self.notify(returnValue)
+
+            if propName == 'wirocdevicename':
                 global wiroc_advertisement
                 wiroc_advertisement.updateLocalName()
                 wiroc_advertisement.updateAdvertisement()
@@ -257,116 +280,93 @@ class PropertiesCharacteristic(Characteristic):
             return
         print('Stop notifying')
         self._notifying = False
-
-
-#---- COMMAND -----
-class CommandCharacteristic(Characteristic):
-    """
-        Write a new property value, or read one
-    """
-    UUID = 'FB880913-4AB2-40A2-A8F0-14CC1C2E5608'
-
-    def __init__(self, bus, index, service):
-        Characteristic.__init__(
-                self, bus, index,
-                self.UUID,
-                ['write', 'notify'],
-                service)
-        self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Execute a command'))
-        # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
-        self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
-        self._notifying = False
-        self._lastWrittenValue = ""
-
-    def notify(self, replyString):
-        if not self._notifying:
-            return
-        reply = replyString.encode()
-        if len(reply) % chunkLength == 0:
-            reply.append(" ".encode()[0])
-        while len(reply) > 0:
-            subReply = reply[0:chunkLength]
-            reply = reply[chunkLength:]
-            self.PropertiesChanged(
-                    GATT_CHRC_IFACE,
-                    { 'Value': dbus.ByteArray(subReply) }, [])
-
-    def WriteValue(self, value, options):
-        try:
-            print('CommandCharacteristic - onWriteRequest')
-            for k, v in options.items():
-                print(k, v)
-            #print('MTU: ' + str(vars(options)))
-            #print('Offset: ' + str(vars(options['offset'])))
-            cmdAndValue = bytes(value).decode()
-            print(cmdAndValue)
-            global chunkLength
-            if len(cmdAndValue) < chunkLength:
-                # final fragment received
-                cmdAndValue = self._lastWrittenValue + cmdAndValue
-                self._lastWrittenValue = ""
-            else:
-                # This is not the full value, wait for the next fragment
-                self._lastWrittenValue = self._lastWrittenValue + cmdAndValue
-                return
-
-            cmdAndValuesArr = cmdAndValue.split(';')
-            cmdName = cmdAndValuesArr[0]
-            commandValue = None
-            print(cmdName)
-            if len(cmdAndValuesArr) > 1:
-                commandValue = cmdAndValuesArr[1]
-            print('writevalue 2')
-
-            replyString = ''
-
-            if cmdName =='listwifi':
-                replyString = Helper.getListWifi()
-            elif cmdName =='connectwifi':
-                replyString = Helper.connectWifi(commandValue)
-            elif cmdName == 'disconnectwifi':
-                replyString = Helper.disconnectWifi()
-            elif cmdName == 'getip':
-                replyString = Helper.getIP()
-            elif cmdName == 'renewip':
-                replyString = Helper.renewIP(commandValue)
-            elif cmdName =='getservices':
-                replyString = Helper.getServices()
-            elif cmdName =='dropalltables':
-                replyString = Helper.dropAllTables()
-            elif cmdName =='uploadlogarchive':
-                replyString = Helper.uploadLogArchive()
-            elif cmdName =='upgradewirocpython':
-                replyString = Helper.upgradeWiRocPython(commandValue)
-            elif cmdName =='upgradewirocble':
-                replyString = Helper.upgradeWiRocBLE(commandValue)
-            elif cmdName =='getall':
-                if commandValue != None:
-                    chunkLength = int(commandValue)
-                    print("chunklength: " + str(chunkLength))
-                replyString = Helper.getAll()
-            elif cmdName =='batterylevel':
-                replyString = Helper.getBatteryLevel()
-
-            replyString = cmdName + ';' + replyString
-            print(replyString)
-            self.notify(replyString)
-        except:
-            print("exception write value")
-
-    def StartNotify(self):
-        if self._notifying:
-            print('Already notifying, nothing to do')
-            return
-        print('Start notifying')
-        self._notifying = True
-
-    def StopNotify(self):
-        if not self._notifying:
-            print('Not notifying, nothing to do')
-            return
-        print('Stop notifying')
-        self._notifying = False
+#
+#
+# #---- COMMAND -----
+# class CommandCharacteristic(Characteristic):
+#     """
+#         Write a new property value, or read one
+#     """
+#     UUID = 'FB880913-4AB2-40A2-A8F0-14CC1C2E5608'
+#
+#     def __init__(self, bus, index, service):
+#         Characteristic.__init__(
+#                 self, bus, index,
+#                 self.UUID,
+#                 ['write', 'notify'],
+#                 service)
+#         self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Execute a command'))
+#         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
+#         self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
+#         self._notifying = False
+#         self._lastWrittenValue = ""
+#
+#     def notify(self, replyString):
+#         if not self._notifying:
+#             return
+#         reply = replyString.encode()
+#         if len(reply) % chunkLength == 0:
+#             reply.append(" ".encode()[0])
+#         while len(reply) > 0:
+#             subReply = reply[0:chunkLength]
+#             reply = reply[chunkLength:]
+#             self.PropertiesChanged(
+#                     GATT_CHRC_IFACE,
+#                     { 'Value': dbus.ByteArray(subReply) }, [])
+#
+#     def WriteValue(self, value, options):
+#         try:
+#             print('CommandCharacteristic - onWriteRequest')
+#             for k, v in options.items():
+#                 print(k, v)
+#             #print('MTU: ' + str(vars(options)))
+#             #print('Offset: ' + str(vars(options['offset'])))
+#             cmdAndValue = bytes(value).decode()
+#             print(cmdAndValue)
+#             global chunkLength
+#             if len(cmdAndValue) < chunkLength:
+#                 # final fragment received
+#                 cmdAndValue = self._lastWrittenValue + cmdAndValue
+#                 self._lastWrittenValue = ""
+#             else:
+#                 # This is not the full value, wait for the next fragment
+#                 self._lastWrittenValue = self._lastWrittenValue + cmdAndValue
+#                 return
+#
+#             cmdAndValuesArr = cmdAndValue.split('\t')
+#             cmdName = cmdAndValuesArr[0]
+#             commandValue = None
+#             print(cmdName)
+#             if len(cmdAndValuesArr) > 1:
+#                 commandValue = cmdAndValuesArr[1]
+#             print('writevalue 2')
+#
+#             replyString = ''
+#
+#             if cmdName =='upgradewirocpython':
+#                 replyString = Helper.upgradeWiRocPython(commandValue)
+#             elif cmdName =='upgradewirocble':
+#                 replyString = Helper.upgradeWiRocBLE(commandValue)
+#
+#             replyString = cmdName + '\t' + replyString
+#             print(replyString)
+#             self.notify(replyString)
+#         except:
+#             print("exception write value")
+#
+#     def StartNotify(self):
+#         if self._notifying:
+#             print('Already notifying, nothing to do')
+#             return
+#         print('Start notifying')
+#         self._notifying = True
+#
+#     def StopNotify(self):
+#         if not self._notifying:
+#             print('Not notifying, nothing to do')
+#             return
+#         print('Stop notifying')
+#         self._notifying = False
 
 #---- PUNCHES -----
 class PunchesCharacteristic(Characteristic):
