@@ -192,7 +192,6 @@ class PropertiesCharacteristic(Characteristic):
         while len(reply) > 0:
             subReply = reply[0:chunkLength]
             reply = reply[chunkLength:]
-            print("fragment: " + subReply.decode())
             self.PropertiesChanged(
                     GATT_CHRC_IFACE,
                     { 'Value': dbus.ByteArray(subReply) }, [])
@@ -223,30 +222,25 @@ class PropertiesCharacteristic(Characteristic):
             propName = propAndValArr[0]
             propVal = None
             print(propName)
+            if len(propAndValArr) > 1:
+                propVal = propAndValArr[1]
 
             # Handle some special cases
-            if propName =='all':
+            if propName == 'all':
                 if propVal != None:
                     # the very first call will be to fetch 'all', this call should include
                     # the chunklength ie. the number of bytes that can be sent at a time
                     chunkLength = int(propVal)
                     print("chunklength: " + str(chunkLength))
+                    propVal = None
             elif propName == 'upgradewirocpython':
                 # Use helper function and then return instead of calling web service
                 replyString = Helper.upgradeWiRocPython(propVal)
                 print(propName + '\t' + replyString)
                 self.notify(propName + '\t' + replyString)
                 return
-            elif propName == 'upgradewirocble':
-                # Use helper function and then return instead of calling web service
-                replyString = Helper.upgradeWiRocBLE(propVal)
-                print(propName + '\t' + replyString)
-                self.notify(propName + '\t' + replyString)
-                return
 
             uri = URIPATH + propName + '/'
-            if len(propAndValArr) > 1:
-                propVal = propAndValArr[1]
             if (propVal != None and len(propVal) > 0):
                 uri += propVal + '/'
             print(uri)
@@ -280,93 +274,7 @@ class PropertiesCharacteristic(Characteristic):
             return
         print('Stop notifying')
         self._notifying = False
-#
-#
-# #---- COMMAND -----
-# class CommandCharacteristic(Characteristic):
-#     """
-#         Write a new property value, or read one
-#     """
-#     UUID = 'FB880913-4AB2-40A2-A8F0-14CC1C2E5608'
-#
-#     def __init__(self, bus, index, service):
-#         Characteristic.__init__(
-#                 self, bus, index,
-#                 self.UUID,
-#                 ['write', 'notify'],
-#                 service)
-#         self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Execute a command'))
-#         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
-#         self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
-#         self._notifying = False
-#         self._lastWrittenValue = ""
-#
-#     def notify(self, replyString):
-#         if not self._notifying:
-#             return
-#         reply = replyString.encode()
-#         if len(reply) % chunkLength == 0:
-#             reply.append(" ".encode()[0])
-#         while len(reply) > 0:
-#             subReply = reply[0:chunkLength]
-#             reply = reply[chunkLength:]
-#             self.PropertiesChanged(
-#                     GATT_CHRC_IFACE,
-#                     { 'Value': dbus.ByteArray(subReply) }, [])
-#
-#     def WriteValue(self, value, options):
-#         try:
-#             print('CommandCharacteristic - onWriteRequest')
-#             for k, v in options.items():
-#                 print(k, v)
-#             #print('MTU: ' + str(vars(options)))
-#             #print('Offset: ' + str(vars(options['offset'])))
-#             cmdAndValue = bytes(value).decode()
-#             print(cmdAndValue)
-#             global chunkLength
-#             if len(cmdAndValue) < chunkLength:
-#                 # final fragment received
-#                 cmdAndValue = self._lastWrittenValue + cmdAndValue
-#                 self._lastWrittenValue = ""
-#             else:
-#                 # This is not the full value, wait for the next fragment
-#                 self._lastWrittenValue = self._lastWrittenValue + cmdAndValue
-#                 return
-#
-#             cmdAndValuesArr = cmdAndValue.split('\t')
-#             cmdName = cmdAndValuesArr[0]
-#             commandValue = None
-#             print(cmdName)
-#             if len(cmdAndValuesArr) > 1:
-#                 commandValue = cmdAndValuesArr[1]
-#             print('writevalue 2')
-#
-#             replyString = ''
-#
-#             if cmdName =='upgradewirocpython':
-#                 replyString = Helper.upgradeWiRocPython(commandValue)
-#             elif cmdName =='upgradewirocble':
-#                 replyString = Helper.upgradeWiRocBLE(commandValue)
-#
-#             replyString = cmdName + '\t' + replyString
-#             print(replyString)
-#             self.notify(replyString)
-#         except:
-#             print("exception write value")
-#
-#     def StartNotify(self):
-#         if self._notifying:
-#             print('Already notifying, nothing to do')
-#             return
-#         print('Start notifying')
-#         self._notifying = True
-#
-#     def StopNotify(self):
-#         if not self._notifying:
-#             print('Not notifying, nothing to do')
-#             return
-#         print('Stop notifying')
-#         self._notifying = False
+
 
 #---- PUNCHES -----
 class PunchesCharacteristic(Characteristic):
@@ -522,13 +430,13 @@ class TestPunchesCharacteristic(Characteristic):
             #No need to support long values since it will always be below 20
             noOfPunchesAndIntervalAndSINo = bytes(value).decode()
             print(noOfPunchesAndIntervalAndSINo)
-            self._noOfPunchesToAdd = int(noOfPunchesAndIntervalAndSINo.split(';')[0])
+            self._noOfPunchesToAdd = int(noOfPunchesAndIntervalAndSINo.split('\t')[0])
             self._noOfPunchesAdded = 0
             intervalMs = 1000
-            if len(noOfPunchesAndIntervalAndSINo.split(';')) > 1:
-                intervalMs = int(noOfPunchesAndIntervalAndSINo.split(';')[1])
-            if len(noOfPunchesAndIntervalAndSINo.split(';')) > 2:
-                self._siNo = noOfPunchesAndIntervalAndSINo.split(';')[2]
+            if len(noOfPunchesAndIntervalAndSINo.split('\t')) > 1:
+                intervalMs = int(noOfPunchesAndIntervalAndSINo.split('\t')[1])
+            if len(noOfPunchesAndIntervalAndSINo.split('\t')) > 2:
+                self._siNo = noOfPunchesAndIntervalAndSINo.split('\t')[2]
 
             if self._timeoutSourceIdAddPunches != None:
                 GLib.source_remove(self._timeoutSourceIdAddPunches)
@@ -649,12 +557,19 @@ def main():
         bus = dbus.SystemBus()
 
         adapter = find_adapter(bus)
-        global device
-        device = find_device1(bus)
-
         if not adapter:
             print('GattManager1 interface not found')
-            return
+            uri = URIPATH + 'startpatchap6212/'
+            req = requests.get(uri)
+            returnValue = 'startpatchap6212\t' + str(req.json()['Value'])
+            print('returnValue ' + str(returnValue))
+            if  str(req.json()['Value']) == 'OK':
+                adapter = find_adapter(bus)
+                if not adapter:
+                    return
+
+        global device
+        device = find_device1(bus)
 
         global service_manager
         service_manager = dbus.Interface(
