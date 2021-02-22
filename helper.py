@@ -9,9 +9,8 @@ class Helper:
     @staticmethod
     def upgradeWiRocPython(version):
         print("helper.upgradeWiRocPython")
-        cwd = os.getcwd()
-        print("current workdir: " + cwd)
         logfile = '../installWiRocPython.log'
+        print(os.getcwd())
         with open(os.devnull, 'r+b', 0) as DEVNULL:
             with open(logfile, 'a') as out:
                 p = Popen(['./installWiRocPython.sh %s' % version], shell=True, stdin=DEVNULL, stdout=out, stderr=out, close_fds=True, cwd='..')
