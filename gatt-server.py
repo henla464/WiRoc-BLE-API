@@ -11,6 +11,7 @@ from helper import Helper
 from advertisement import *
 from gi.repository import GLib
 import sys
+import threading
 
 from random import randint
 
@@ -196,6 +197,26 @@ class PropertiesCharacteristic(Characteristic):
                     GATT_CHRC_IFACE,
                     { 'Value': dbus.ByteArray(subReply) }, [])
 
+    def doRequestInBackground(self, uri, propName):
+        try:
+            req = requests.get(uri)
+            theValue = req.json()['Value']
+            returnValue = propName + '\t'
+            if isinstance(theValue, str):
+                returnValue += theValue
+            else:
+                returnValue += json.dumps(theValue)
+            print('returnValue ' + str(returnValue))
+            self.notify(returnValue)
+
+            if propName == 'wirocdevicename':
+                global wiroc_advertisement
+                wiroc_advertisement.updateLocalName()
+                wiroc_advertisement.updateAdvertisement()
+        except:
+            e = sys.exc_info()[0]
+            print("exception " + str(e))
+            self.notify('')
 
     def WriteValue(self,value, options):
         try:
@@ -244,16 +265,9 @@ class PropertiesCharacteristic(Characteristic):
             if (propVal != None and len(propVal) > 0):
                 uri += propVal + '/'
             print(uri)
-            req = requests.get(uri)
-            returnValue = propName + '\t' + str(req.json()['Value'])
-            print('returnValue ' + str(returnValue))
-            self.notify(returnValue)
 
-            if propName == 'wirocdevicename':
-                global wiroc_advertisement
-                wiroc_advertisement.updateLocalName()
-                wiroc_advertisement.updateAdvertisement()
-
+            requestThread = threading.Thread(target=self.doRequestInBackground, name="Downloader", args=(uri, propName))
+            requestThread.start()
         except:
             e = sys.exc_info()[0]
             print("exception " + str(e))
