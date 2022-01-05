@@ -327,27 +327,28 @@ class PunchesCharacteristic(Characteristic):
         uri = URIPATH + 'punches/'
         req = requests.get(uri)
         thePunches = req.json()['Value']
-        thePunches = thePunches[len('punches;')]
         self.notify(thePunches)
         return True
 
     def StartNotify(self):
         if self._notifying:
-            print('PunchesCharacteristic - Already notifying, nothing to do')
-            return
+            print('PunchesCharacteristic - Already notifying, stop first')
+            self.StopNotify()
         print('PunchesCharacteristic - Start notifying')
-        uri = URIPATH + 'sendtoblenoenabled/1'
+        uri = URIPATH + 'sendtoblenoenabled/1/'
         req = requests.get(uri)
         self._notifying = True
-        self._timeoutSourceId = GLib.timeout_add(1000, self.getPunches())
+        self._timeoutSourceId = GLib.timeout_add(1000, self.getPunches)
 
     def StopNotify(self):
         if not self._notifying:
             print('PunchesCharacteristic - Not notifying, nothing to do')
             return
         print('PunchesCharacteristic - Stop notifying')
-        GLib.source_remove(self._timeoutSourceId)
-        uri = URIPATH + 'sendtoblenoenabled/0'
+        if self._timeoutSourceId != None:
+            GLib.source_remove(self._timeoutSourceId)
+            self._timeoutSourceId = None
+        uri = URIPATH + 'sendtoblenoenabled/0/'
         req = requests.get(uri)
         self._notifying = False
 
