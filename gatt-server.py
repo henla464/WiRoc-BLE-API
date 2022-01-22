@@ -241,29 +241,34 @@ class PropertiesCharacteristic(Characteristic):
             #for propAndVal in thisFnCallPropertyNameAndValuesToWriteArr:
             propAndValArr = propertyNameAndValues.split('\t')
             propName = propAndValArr[0]
-            propVal = None
+            propVal1 = None
+            propVal2 = None
             print(propName)
             if len(propAndValArr) > 1:
-                propVal = propAndValArr[1]
+                propVal1 = propAndValArr[1]
+            if len(propAndValArr) > 2:
+                propVal2 = propAndValArr[2]
 
             # Handle some special cases
             if propName == 'all':
-                if propVal != None:
+                if propVal1 != None:
                     # the very first call will be to fetch 'all', this call should include
                     # the chunklength ie. the number of bytes that can be sent at a time
-                    chunkLength = int(propVal)
+                    chunkLength = int(propVal1)
                     print("chunklength: " + str(chunkLength))
-                    propVal = None
+                    propVal1 = None
             elif propName == 'upgradewirocpython':
                 # Use helper function and then return instead of calling web service
-                replyString = Helper.upgradeWiRocPython(propVal)
+                replyString = Helper.upgradeWiRocPython(propVal1)
                 print(propName + '\t' + replyString)
                 self.notify(propName + '\t' + replyString)
                 return
 
             uri = URIPATH + propName + '/'
-            if (propVal != None and len(propVal) > 0):
-                uri += propVal + '/'
+            if (propVal1 != None and len(propVal1) > 0):
+                uri += propVal1 + '/'
+            if (propVal2 != None and len(propVal2) > 0):
+                uri += propVal2 + '/'
             print(uri)
 
             requestThread = threading.Thread(target=self.doRequestInBackground, name="Downloader", args=(uri, propName))
