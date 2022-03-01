@@ -464,7 +464,7 @@ class TestPunchesCharacteristic(Characteristic):
 
             print("Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + str(intervalMs) + " si number: " + self._siNo)
             self._testBatchGuid = uuid.uuid4()
-            self._timeoutSourceIdAddPunches = GLib.timeout_add(1000, self.addTestPunch)
+            self._timeoutSourceIdAddPunches = GLib.timeout_add(intervalMs, self.addTestPunch)
         except:
             print("exception")
 
