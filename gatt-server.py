@@ -189,7 +189,7 @@ class PropertiesCharacteristic(Characteristic):
             return
         reply = replyString.encode()
         if len(reply) % chunkLength == 0:
-            reply.append(" ".encode()[0])
+            reply = reply + bytes([" ".encode()[0]])
         while len(reply) > 0:
             subReply = reply[0:chunkLength]
             reply = reply[chunkLength:]
