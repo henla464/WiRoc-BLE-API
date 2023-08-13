@@ -19,7 +19,7 @@ mainloop = None
 
 BLUEZ_SERVICE_NAME = 'org.bluez'
 GATT_MANAGER_IFACE = 'org.bluez.GattManager1'
-DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
+DBUS_OM_IFACE = 'org.freedesktop.DBus.ObjectManager'
 DEVICE1_IFACE = 'org.bluez.Device1'
 
 API_SERVICE = 'fb880900-4ab2-40a2-a8f0-14cc1c2e5608'
@@ -27,16 +27,18 @@ API_SERVICE = 'fb880900-4ab2-40a2-a8f0-14cc1c2e5608'
 URIPATH = 'http://127.0.0.1:5000/api/'
 
 device = None
-ad_manager =  None
+ad_manager = None
 service_manager = None
 wiroc_application = None
 wiroc_advertisement = None
 chunkLength = 20
 
+
 class WiRocApplication(dbus.service.Object):
     """
     org.bluez.GattApplication1 interface implementation
     """
+
     def __init__(self, bus):
         self.path = '/'
         self.services = []
@@ -62,7 +64,6 @@ class WiRocApplication(dbus.service.Object):
 
     def add_service(self, service):
         self.services.append(service)
-
 
     @dbus.service.method(DBUS_OM_IFACE, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
@@ -119,20 +120,17 @@ class WiRocApplication(dbus.service.Object):
             if not properties:
                 return
 
-        if properties == None:
+        if properties is None:
             for k, v in interfaces.items():
                 print(k, v)
         else:
             self.PrintNormal(properties)
-
 
     def InterfacesRemoved(self, path, interfaces):
         global device
         print('interfaces removed')
         print("removed: ")
         print(*interfaces, sep="\n")
-
-
 
     def PropertiesChanged(self, interface, changed, invalidated, path):
         global device
@@ -159,12 +157,12 @@ class ApiService(Service):
     def __init__(self, bus, index):
         Service.__init__(self, bus, index, self.SERVICE_UUID, True)
         self.add_characteristic(PropertiesCharacteristic(bus, 0, self))
-        #self.add_characteristic(CommandCharacteristic(bus, 1, self))
         self.add_characteristic(PunchesCharacteristic(bus, 1, self))
         self.add_characteristic(TestPunchesCharacteristic(bus, 2, self))
+        self.add_characteristic(ErrorCodesCharacteristic(bus, 3, self))
 
 
-#---- PROPERTIES -----
+# ---- PROPERTIES -----
 class PropertiesCharacteristic(Characteristic):
     """
         Write a new property value, or read one
@@ -173,16 +171,17 @@ class PropertiesCharacteristic(Characteristic):
 
     def __init__(self, bus, index, service):
         Characteristic.__init__(
-                self, bus, index,
-                self.UUID,
-                ['write', 'notify'],
-                service)
+            self, bus, index,
+            self.UUID,
+            ['write', 'notify'],
+            service)
         self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Write a new property value, or read one'))
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
-        self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
+        self.add_descriptor(PresentationDescriptor(bus, 1, self,
+                                                   [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00),
+                                                    dbus.Byte(0x00)]))
         self._notifying = False
         self._lastWrittenValue = ""
-
 
     def notify(self, replyString):
         if not self._notifying:
@@ -194,8 +193,8 @@ class PropertiesCharacteristic(Characteristic):
             subReply = reply[0:chunkLength]
             reply = reply[chunkLength:]
             self.PropertiesChanged(
-                    GATT_CHRC_IFACE,
-                    { 'Value': dbus.ByteArray(subReply) }, [])
+                GATT_CHRC_IFACE,
+                {'Value': dbus.ByteArray(subReply)}, [])
 
     def doRequestInBackground(self, uri, propName):
         try:
@@ -218,13 +217,13 @@ class PropertiesCharacteristic(Characteristic):
             print("exception " + str(e))
             self.notify('')
 
-    def WriteValue(self,value, options):
+    def WriteValue(self, value, options):
         try:
             print('PropertiesCharacteristic - onWriteRequest')
             for k, v in options.items():
                 print(k, v)
-            #print('MTU: ' + str(options['mtu']))
-            #print('Offset: ' + str(options['offset']))
+            # print('MTU: ' + str(options['mtu']))
+            # print('Offset: ' + str(options['offset']))
             propertyNameAndValues = bytes(value).decode()
             global chunkLength
             if len(propertyNameAndValues) < chunkLength:
@@ -236,9 +235,9 @@ class PropertiesCharacteristic(Characteristic):
                 self._lastWrittenValue = self._lastWrittenValue + propertyNameAndValues
                 return
 
-            #thisFnCallPropertyNameAndValuesToWriteArr = propertyNameAndValues.split('|')
-            #print(thisFnCallPropertyNameAndValuesToWriteArr)
-            #for propAndVal in thisFnCallPropertyNameAndValuesToWriteArr:
+            # thisFnCallPropertyNameAndValuesToWriteArr = propertyNameAndValues.split('|')
+            # print(thisFnCallPropertyNameAndValuesToWriteArr)
+            # for propAndVal in thisFnCallPropertyNameAndValuesToWriteArr:
             propAndValArr = propertyNameAndValues.split('\t')
             propName = propAndValArr[0]
             propVal1 = None
@@ -265,9 +264,9 @@ class PropertiesCharacteristic(Characteristic):
                 return
 
             uri = URIPATH + propName + '/'
-            if (propVal1 != None and len(propVal1) > 0):
+            if propVal1 is not None and len(propVal1) > 0:
                 uri += propVal1 + '/'
-            if (propVal2 != None and len(propVal2) > 0):
+            if propVal2 is not None and len(propVal2) > 0:
                 uri += propVal2 + '/'
             print(uri)
 
@@ -278,14 +277,12 @@ class PropertiesCharacteristic(Characteristic):
             print("exception " + str(e))
             self.notify('')
 
-
     def StartNotify(self):
         if self._notifying:
             print('Prop: Already notifying, nothing to do')
             return
         print('Start notifying')
         self._notifying = True
-
 
     def StopNotify(self):
         if not self._notifying:
@@ -295,22 +292,24 @@ class PropertiesCharacteristic(Characteristic):
         self._notifying = False
 
 
-#---- PUNCHES -----
-class PunchesCharacteristic(Characteristic):
+# ---- ERRORCODES -----
+class ErrorCodesCharacteristic(Characteristic):
     """
         Write a new property value, or read one
     """
-    UUID = 'FB880901-4AB2-40A2-A8F0-14CC1C2E5608'
+    UUID = 'FB880902-4AB2-40A2-A8F0-14CC1C2E5608'
 
     def __init__(self, bus, index, service):
         Characteristic.__init__(
-                self, bus, index,
-                self.UUID,
-                ['notify'],
-                service)
-        self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Sends out the punch data'))
+            self, bus, index,
+            self.UUID,
+            ['notify'],
+            service)
+        self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Sends out error codes'))
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
-        self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
+        self.add_descriptor(PresentationDescriptor(bus, 1, self,
+                                                   [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00),
+                                                    dbus.Byte(0x00)]))
 
         self._notifying = False
         self._timeoutSourceId = None
@@ -325,8 +324,69 @@ class PunchesCharacteristic(Characteristic):
             subReply = reply[0:chunkLength]
             reply = reply[chunkLength:]
             self.PropertiesChanged(
-                    GATT_CHRC_IFACE,
-                    { 'Value': dbus.ByteArray(subReply) }, [])
+                GATT_CHRC_IFACE,
+                {'Value': dbus.ByteArray(subReply)}, [])
+
+    def getErrorCodes(self):
+        uri = URIPATH + 'errorcodes/'
+        req = requests.get(uri)
+        theErrorCodes = req.json()['Value']
+        self.notify(theErrorCodes)
+        return True
+
+    def StartNotify(self):
+        if self._notifying:
+            print('ErrorCodesCharacteristic - Already notifying, stop first')
+            self.StopNotify()
+        print('ErrorCodesCharacteristic - Start notifying')
+        self._notifying = True
+        self._timeoutSourceId = GLib.timeout_add(1000, self.getErrorCodes)
+
+    def StopNotify(self):
+        if not self._notifying:
+            print('ErrorCodesCharacteristic - Not notifying, nothing to do')
+            return
+        print('ErrorCodesCharacteristic - Stop notifying')
+        if self._timeoutSourceId is not None:
+            GLib.source_remove(self._timeoutSourceId)
+            self._timeoutSourceId = None
+        self._notifying = False
+
+
+# ---- PUNCHES -----
+class PunchesCharacteristic(Characteristic):
+    """
+        Write a new property value, or read one
+    """
+    UUID = 'FB880901-4AB2-40A2-A8F0-14CC1C2E5608'
+
+    def __init__(self, bus, index, service):
+        Characteristic.__init__(
+            self, bus, index,
+            self.UUID,
+            ['notify'],
+            service)
+        self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Sends out the punch data'))
+        # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
+        self.add_descriptor(PresentationDescriptor(bus, 1, self,
+                                                   [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00),
+                                                    dbus.Byte(0x00)]))
+
+        self._notifying = False
+        self._timeoutSourceId = None
+
+    def notify(self, replyString):
+        if not self._notifying:
+            return
+        reply = replyString.encode()
+        if len(reply) % chunkLength == 0:
+            reply.append(" ".encode()[0])
+        while len(reply) > 0:
+            subReply = reply[0:chunkLength]
+            reply = reply[chunkLength:]
+            self.PropertiesChanged(
+                GATT_CHRC_IFACE,
+                {'Value': dbus.ByteArray(subReply)}, [])
 
     def getPunches(self):
         uri = URIPATH + 'punches/'
@@ -357,7 +417,8 @@ class PunchesCharacteristic(Characteristic):
         req = requests.get(uri)
         self._notifying = False
 
-#---- TESTPUNCHES -----
+
+# ---- TESTPUNCHES -----
 class TestPunchesCharacteristic(Characteristic):
     """
         Write a new property value, or read one
@@ -366,13 +427,15 @@ class TestPunchesCharacteristic(Characteristic):
 
     def __init__(self, bus, index, service):
         Characteristic.__init__(
-                self, bus, index,
-                self.UUID,
-                ['read', 'write', 'notify'],
-                service)
+            self, bus, index,
+            self.UUID,
+            ['read', 'write', 'notify'],
+            service)
         self.add_descriptor(DescriptionDescriptor(bus, 0, self, 'Send test punches'))
         # presentation format: 0x19 = utf8, 0x01 = exponent 1, 0x00 0x27 = unit less, 0x01 = namespace, 0x00 0x00 description
-        self.add_descriptor(PresentationDescriptor(bus, 1, self, [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x00)]))
+        self.add_descriptor(PresentationDescriptor(bus, 1, self,
+                                                   [dbus.Byte(0x19), dbus.Byte(0x01), dbus.Byte(0x00), dbus.Byte(0x27), dbus.Byte(0x01), dbus.Byte(0x00),
+                                                    dbus.Byte(0x00)]))
 
         self._notifying = False
         self._timeoutSourceIdGetPunches = None
@@ -394,13 +457,13 @@ class TestPunchesCharacteristic(Characteristic):
             subReply = reply[0:chunkLength]
             reply = reply[chunkLength:]
             self.PropertiesChanged(
-                    GATT_CHRC_IFACE,
-                    { 'Value': dbus.ByteArray(subReply) }, [])
+                GATT_CHRC_IFACE,
+                {'Value': dbus.ByteArray(subReply)}, [])
 
     def getTestPunches(self):
         print('getTestPunches')
         try:
-            if self._testBatchGuid == None:
+            if self._testBatchGuid is None:
                 print("self._testBatchGuid is None")
                 return True
 
@@ -420,34 +483,34 @@ class TestPunchesCharacteristic(Characteristic):
             # add punch
             print("addTestPunch")
 
-            uri = URIPATH + 'testpunches/addtestpunch/' + str(self._testBatchGuid) + '/' + self._siNo + '/'
-            resp = requests.get(uri)
-            print(resp.json())
-
-            self._noOfPunchesAdded = self._noOfPunchesAdded + 1
-            if self._noOfPunchesAdded >= self._noOfPunchesToAdd:
+            if self._noOfPunchesAdded < self._noOfPunchesToAdd:
+                self._noOfPunchesAdded = self._noOfPunchesAdded + 1
+                uri = URIPATH + 'testpunches/addtestpunch/' + str(self._testBatchGuid) + '/' + self._siNo + '/'
+                resp = requests.get(uri)
+                print(resp.json())
+                return True
+            else:
                 print("addTestPunchInterval cleared")
-                if self._timeoutSourceIdAddPunches != None:
+                if self._timeoutSourceIdAddPunches is not None:
                     GLib.source_remove(self._timeoutSourceIdAddPunches)
                     self._timeoutSourceIdAddPunches = None
                 return False
         except:
             print('exception in addTestPunch')
-        finally:
-            return True
+            return False
 
-    def WriteValue(self,value, options):
+    def WriteValue(self, value, options):
         try:
             print('TestPunchesCharacteristic - onWriteRequest')
             for k, v in options.items():
                 print(k, v)
-            #print('MTU: ' + str(options['mtu']))
-            #print('Offset: ' + str(options['offset']))
-            #no of test punches max 100, ie 3 chars
-            #interval max 15000 ms, ie 5 chars
-            #SI number currently max 7 digits
-            #=> max 15 + 2 semicolon => 17 chars
-            #No need to support long values since it will always be below 20
+            # print('MTU: ' + str(options['mtu']))
+            # print('Offset: ' + str(options['offset']))
+            # no of test punches max 100, ie 3 chars
+            # interval max 15000 ms, ie 5 chars
+            # SI number currently max 7 digits
+            # => max 15 + 2 semicolon => 17 chars
+            # No need to support long values since it will always be below 20
             noOfPunchesAndIntervalAndSINo = bytes(value).decode()
             print(noOfPunchesAndIntervalAndSINo)
             self._noOfPunchesToAdd = int(noOfPunchesAndIntervalAndSINo.split('\t')[0])
@@ -458,7 +521,7 @@ class TestPunchesCharacteristic(Characteristic):
             if len(noOfPunchesAndIntervalAndSINo.split('\t')) > 2:
                 self._siNo = noOfPunchesAndIntervalAndSINo.split('\t')[2]
 
-            if self._timeoutSourceIdAddPunches != None:
+            if self._timeoutSourceIdAddPunches is not None:
                 GLib.source_remove(self._timeoutSourceIdAddPunches)
                 self._timeoutSourceIdAddPunches = None
 
@@ -466,7 +529,7 @@ class TestPunchesCharacteristic(Characteristic):
             self._testBatchGuid = uuid.uuid4()
             self.addTestPunch()
             if self._noOfPunchesAdded < self._noOfPunchesToAdd:
-	        self._timeoutSourceIdAddPunches = GLib.timeout_add(intervalMs, self.addTestPunch)
+                self._timeoutSourceIdAddPunches = GLib.timeout_add(intervalMs, self.addTestPunch)
         except:
             print("exception")
 
@@ -474,8 +537,8 @@ class TestPunchesCharacteristic(Characteristic):
         print('TestPunchesCharacteristic - ReadValue')
         for k, v in options.items():
             print(k, v)
-        #print('MTU: ' + str(options['mtu']))
-        #print('Offset: ' + str(options['offset']))
+        # print('MTU: ' + str(options['mtu']))
+        # print('Offset: ' + str(options['offset']))
         offset = options['offset']
         includeAll = True
         if offset == 0:
@@ -499,7 +562,7 @@ class TestPunchesCharacteristic(Characteristic):
         print('TestPunches: Stop notifying START')
         GLib.source_remove(self._timeoutSourceIdGetPunches)
         self._timeoutSourceIdGetPunches = None
-        if self._timeoutSourceIdAddPunches != None:
+        if self._timeoutSourceIdAddPunches is not None:
             GLib.source_remove(self._timeoutSourceIdAddPunches)
             self._timeoutSourceIdAddPunches = None
         self._notifying = False
@@ -507,19 +570,18 @@ class TestPunchesCharacteristic(Characteristic):
 
 
 class WiRocAdvertisement(Advertisement):
-
     def __init__(self, bus, index):
         Advertisement.__init__(self, bus, index, 'peripheral')
         self.add_service_uuid(API_SERVICE)
-        #self.add_service_uuid('180F')
-        #self.add_manufacturer_data(0xffff, [0x00, 0x01, 0x02, 0x03, 0x04])
-        #self.add_manufacturer_data(0xffff, [0x00, 0x01, 0x02, 0x03, 0x04])
-        #self.add_service_data('9999', [0x00, 0x01, 0x02])
+        # self.add_service_uuid('180F')
+        # self.add_manufacturer_data(0xffff, [0x00, 0x01, 0x02, 0x03, 0x04])
+        # self.add_manufacturer_data(0xffff, [0x00, 0x01, 0x02, 0x03, 0x04])
+        # self.add_service_data('9999', [0x00, 0x01, 0x02])
 
         self.updateLocalName()
-        #self.add_local_name('Test')
+        # self.add_local_name('Test')
         self.include_tx_power = True
-        #self.add_data(0x26, [0x01, 0x01, 0x00])
+        # self.add_data(0x26, [0x01, 0x01, 0x00])
 
     def updateLocalName(self):
         uri = URIPATH + 'wirocdevicename/'
@@ -539,16 +601,20 @@ class WiRocAdvertisement(Advertisement):
 def register_ad_cb():
     print('Advertisement registered')
 
+
 def register_ad_error_cb(error):
     print('Failed to register advertisement: ' + str(error))
     mainloop.quit()
 
+
 def register_app_cb():
     print('GATT application registered')
+
 
 def register_app_error_cb(error):
     print('Failed to register application: ' + str(error))
     mainloop.quit()
+
 
 def find_adapter(bus):
     remote_om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'),
@@ -561,6 +627,7 @@ def find_adapter(bus):
 
     return None
 
+
 def find_device1(bus):
     om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'), DBUS_OM_IFACE)
     objects = om.GetManagedObjects()
@@ -569,6 +636,7 @@ def find_device1(bus):
             return interfaces["org.bluez.Device1"]
 
     return None
+
 
 def main():
     try:
@@ -585,7 +653,7 @@ def main():
             req = requests.get(uri)
             returnValue = 'startpatchap6212\t' + str(req.json()['Value'])
             print('returnValue ' + str(returnValue))
-            if  str(req.json()['Value']) == 'OK':
+            if str(req.json()['Value']) == 'OK':
                 adapter = find_adapter(bus)
                 if not adapter:
                     return
@@ -595,8 +663,8 @@ def main():
 
         global service_manager
         service_manager = dbus.Interface(
-                bus.get_object(BLUEZ_SERVICE_NAME, adapter),
-                GATT_MANAGER_IFACE)
+            bus.get_object(BLUEZ_SERVICE_NAME, adapter),
+            GATT_MANAGER_IFACE)
 
         global wiroc_application
         wiroc_application = WiRocApplication(bus)
@@ -610,14 +678,13 @@ def main():
 
         mainloop = GLib.MainLoop()
 
-
         try:
             path = wiroc_advertisement.get_path()
             print('Path: ' + path)
             print('Registering advertisement')
             ad_manager.RegisterAdvertisement(wiroc_advertisement.get_path(), {},
-                                         reply_handler=register_ad_cb,
-                                         error_handler=register_ad_error_cb)
+                                             reply_handler=register_ad_cb,
+                                             error_handler=register_ad_error_cb)
             print('After Registering advertisement')
         except:
             print('Advertisement exception')
@@ -627,18 +694,15 @@ def main():
 
         print('Registering GATT application...')
         service_manager.RegisterApplication(wiroc_application.get_path(), {},
-                                        reply_handler=register_app_cb,
-                                        error_handler=register_app_error_cb)
-
-
-
+                                            reply_handler=register_app_cb,
+                                            error_handler=register_app_error_cb)
 
         mainloop.run()
         print("after mainLoop")
-        #ad_manager.UnregisterAdvertisement(wiroc_advertisement)
-        #service_manager.UnregisterApplication(app)
-        #print('Advertisement unregistered')
-        #dbus.service.Object.remove_from_connection(wiroc_advertisement)
+        # ad_manager.UnregisterAdvertisement(wiroc_advertisement)
+        # service_manager.UnregisterApplication(app)
+        # print('Advertisement unregistered')
+        # dbus.service.Object.remove_from_connection(wiroc_advertisement)
     except (KeyboardInterrupt, SystemExit):
         ad_manager.UnregisterAdvertisement(wiroc_advertisement)
         dbus.service.Object.remove_from_connection(wiroc_advertisement)
