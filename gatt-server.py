@@ -525,13 +525,14 @@ class TestPunchesCharacteristic(Characteristic):
                 GLib.source_remove(self._timeoutSourceIdAddPunches)
                 self._timeoutSourceIdAddPunches = None
 
-            print("Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + str(intervalMs) + " si number: " + self._siNo)
+            print("Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + str(intervalMs) + " si number: " + self._siNo + " no of punches added: " + str(self._noOfPunchesAdded))
             self._testBatchGuid = uuid.uuid4()
             self.addTestPunch()
+            print("After first add. Number of punches to add: " + str(self._noOfPunchesToAdd) + " interval: " + str(intervalMs) + " si number: " + self._siNo + " no of punches added: " + str(self._noOfPunchesAdded))
             if self._noOfPunchesAdded < self._noOfPunchesToAdd:
                 self._timeoutSourceIdAddPunches = GLib.timeout_add(intervalMs, self.addTestPunch)
-        except:
-            print("exception")
+        except ex:
+            print("exception TestPunchesCharacteristic - onWriteRequest" + str(ex))
 
     def ReadValue(self, options):
         print('TestPunchesCharacteristic - ReadValue')
