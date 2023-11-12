@@ -6,6 +6,7 @@ import dbus.mainloop.glib
 import dbus.service
 
 
+
 class InvalidArgsException(dbus.exceptions.DBusException):
     _dbus_error_name = 'org.freedesktop.DBus.Error.InvalidArgs'
 
