@@ -182,6 +182,7 @@ class PropertiesCharacteristic(Characteristic):
                                                     dbus.Byte(0x00)]))
         self._notifying = False
         self._lastWrittenValue = ""
+        self._lock = threading.Lock()
 
     def notify(self, replyString):
         if not self._notifying:
@@ -206,8 +207,10 @@ class PropertiesCharacteristic(Characteristic):
             else:
                 returnValue += json.dumps(theValue)
             print('returnValue ' + str(returnValue))
+            self._lock.acquire()
             self.notify(returnValue)
-
+            self._lock.release()
+            
             if propName == 'wirocdevicename':
                 global wiroc_advertisement
                 wiroc_advertisement.updateLocalName()
@@ -235,43 +238,45 @@ class PropertiesCharacteristic(Characteristic):
                 self._lastWrittenValue = self._lastWrittenValue + propertyNameAndValues
                 return
 
-            # thisFnCallPropertyNameAndValuesToWriteArr = propertyNameAndValues.split('|')
-            # print(thisFnCallPropertyNameAndValuesToWriteArr)
-            # for propAndVal in thisFnCallPropertyNameAndValuesToWriteArr:
-            propAndValArr = propertyNameAndValues.split('\t')
-            propName = propAndValArr[0]
-            propVal1 = None
-            propVal2 = None
-            print(propName)
-            if len(propAndValArr) > 1:
-                propVal1 = propAndValArr[1]
-            if len(propAndValArr) > 2:
-                propVal2 = propAndValArr[2]
+            propertyNameAndValuesArr = propertyNameAndValues.split("|")
+            for propNameAndValues in propertyNameAndValuesArr:
+                if len(propNameAndValues.strip()) == 0:
+                    return
 
-            # Handle some special cases
-            if propName == 'all':
-                if propVal1 != None:
-                    # the very first call will be to fetch 'all', this call should include
-                    # the chunklength ie. the number of bytes that can be sent at a time
-                    chunkLength = int(propVal1)
-                    print("chunklength: " + str(chunkLength))
-                    propVal1 = None
-            elif propName == 'upgradewirocpython':
-                # Use helper function and then return instead of calling web service
-                replyString = Helper.upgradeWiRocPython(propVal1)
-                print(propName + '\t' + replyString)
-                self.notify(propName + '\t' + replyString)
-                return
+                propAndValArr = propNameAndValues.split('\t')
+                propName = propAndValArr[0]
+                propVal1 = None
+                propVal2 = None
+                print(propName)
+                if len(propAndValArr) > 1:
+                    propVal1 = propAndValArr[1]
+                if len(propAndValArr) > 2:
+                    propVal2 = propAndValArr[2]
 
-            uri = URIPATH + propName + '/'
-            if propVal1 is not None and len(propVal1) > 0:
-                uri += propVal1 + '/'
-            if propVal2 is not None and len(propVal2) > 0:
-                uri += propVal2 + '/'
-            print(uri)
+                # Handle some special cases
+                if propName == 'all':
+                    if propVal1 is not None:
+                        # the very first call will be to fetch 'all', this call should include
+                        # the chunklength ie. the number of bytes that can be sent at a time
+                        chunkLength = int(propVal1)
+                        print("chunklength: " + str(chunkLength))
+                        propVal1 = None
+                elif propName == 'upgradewirocpython':
+                    # Use helper function and then return instead of calling web service
+                    replyString = Helper.upgradeWiRocPython(propVal1)
+                    print(propName + '\t' + replyString)
+                    self.notify(propName + '\t' + replyString)
+                    return
 
-            requestThread = threading.Thread(target=self.doRequestInBackground, name="Downloader", args=(uri, propName))
-            requestThread.start()
+                uri = URIPATH + propName + '/'
+                if propVal1 is not None and len(propVal1) > 0:
+                    uri += propVal1 + '/'
+                if propVal2 is not None and len(propVal2) > 0:
+                    uri += propVal2 + '/'
+                print(uri)
+
+                requestThread = threading.Thread(target=self.doRequestInBackground, name="Downloader", args=(uri, propName))
+                requestThread.start()
         except:
             e = sys.exc_info()[0]
             print("exception " + str(e))

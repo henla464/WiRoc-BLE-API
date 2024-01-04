@@ -101,3 +101,4 @@ class Advertisement(dbus.service.Object):
                          out_signature='')
     def Release(self):
         print('%s: Released!' % self.path)
+
