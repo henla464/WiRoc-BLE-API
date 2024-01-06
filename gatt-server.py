@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+from queue import Queue
 import requests
 import dbus.exceptions
 import dbus.mainloop.glib
@@ -220,6 +220,53 @@ class PropertiesCharacteristic(Characteristic):
             print("exception " + str(e))
             self.notify('')
 
+    def doRequestInBackground2(self, uri, propName, resultQueue: Queue):
+        try:
+            req = requests.get(uri)
+            theValue = req.json()['Value']
+            returnValue = propName + '\t'
+            if isinstance(theValue, str):
+                returnValue += theValue
+            else:
+                returnValue += json.dumps(theValue)
+            print('doRequestInBackground2 returnValue ' + str(returnValue))
+            #self._lock.acquire()
+            #self.notify(returnValue)
+            #self._lock.release()
+
+            if propName == 'wirocdevicename':
+                global wiroc_advertisement
+                wiroc_advertisement.updateLocalName()
+                wiroc_advertisement.updateAdvertisement()
+
+            print('doRequestInBackground2 before queue put')
+            resultQueue.put(returnValue)
+            print('doRequestInBackground2 after queue put')
+        except:
+            e = sys.exc_info()[0]
+            print("exception " + str(e))
+            #self.notify('')
+
+    def joinAndSendResultFromThreads(self, requestThreads, resultQueue: Queue):
+        print('joinAndSendResultFromThreads 1')
+        for t in requestThreads:
+            t.join()
+
+        print('joinAndSendResultFromThreads 2')
+        combinedResult = ''
+        while not resultQueue.empty():
+            combinedResult = combinedResult + resultQueue.get() + '|'
+
+        print('joinAndSendResultFromThreads 3')
+        if len(combinedResult) > 0:
+            combinedResult = combinedResult[0:-1]
+
+        print('joinAndSendResultFromThreads 4')
+        self._lock.acquire()
+        self.notify(combinedResult)
+        self._lock.release()
+
+
     def WriteValue(self, value, options):
         try:
             print('PropertiesCharacteristic - onWriteRequest')
@@ -238,10 +285,12 @@ class PropertiesCharacteristic(Characteristic):
                 self._lastWrittenValue = self._lastWrittenValue + propertyNameAndValues
                 return
 
+            requestThreads = []
+            resultQueue = Queue()
             propertyNameAndValuesArr = propertyNameAndValues.split("|")
             for propNameAndValues in propertyNameAndValuesArr:
                 if len(propNameAndValues.strip()) == 0:
-                    return
+                    continue
 
                 propAndValArr = propNameAndValues.split('\t')
                 propName = propAndValArr[0]
@@ -275,8 +324,13 @@ class PropertiesCharacteristic(Characteristic):
                     uri += propVal2 + '/'
                 print(uri)
 
-                requestThread = threading.Thread(target=self.doRequestInBackground, name="Downloader", args=(uri, propName))
+                requestThread = threading.Thread(target=self.doRequestInBackground2, name="Downloader", args=(uri, propName, resultQueue))
                 requestThread.start()
+                requestThreads.append(requestThread)
+
+            joinAndSendResultThread = threading.Thread(target=self.joinAndSendResultFromThreads, name="Notifier",
+                                             args=(requestThreads, resultQueue))
+            joinAndSendResultThread.start()
         except:
             e = sys.exc_info()[0]
             print("exception " + str(e))
