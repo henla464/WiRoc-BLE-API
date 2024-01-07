@@ -261,7 +261,7 @@ class PropertiesCharacteristic(Characteristic):
         if len(combinedResult) > 0:
             combinedResult = combinedResult[0:-1]
 
-        print('joinAndSendResultFromThreads 4')
+        print('joinAndSendResultFromThreads 4: ' + combinedResult)
         self._lock.acquire()
         self.notify(combinedResult)
         self._lock.release()
