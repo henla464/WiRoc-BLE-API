@@ -13,6 +13,6 @@ class Helper:
         print(os.getcwd())
         with open(os.devnull, 'r+b', 0) as DEVNULL:
             with open(logfile, 'a') as out:
-                p = Popen(['./installWiRocPython.sh %s' % version], shell=True, stdin=DEVNULL, stdout=out, stderr=out, close_fds=True, cwd='..')
+                p = Popen(['./installWiRocPython.py %s' % version], shell=True, stdin=DEVNULL, stdout=out, stderr=out, close_fds=True, cwd='..')
 
         return 'OK'

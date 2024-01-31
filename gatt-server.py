@@ -223,7 +223,9 @@ class PropertiesCharacteristic(Characteristic):
     def doRequestInBackground2(self, uri, propName, resultQueue: Queue):
         try:
             req = requests.get(uri)
+            print('doRequestInBackground2 ' + str(req.content))
             theValue = req.json()['Value']
+            print('doRequestInBackground2 value' + str(theValue))
             returnValue = propName + '\t'
             if isinstance(theValue, str):
                 returnValue += theValue
