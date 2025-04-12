@@ -711,14 +711,7 @@ def main():
         adapter = find_adapter(bus)
         if not adapter:
             print('GattManager1 interface not found')
-            uri = URIPATH + 'startpatchap6212/'
-            req = requests.get(uri)
-            returnValue = 'startpatchap6212\t' + str(req.json()['Value'])
-            print('returnValue ' + str(returnValue))
-            if str(req.json()['Value']) == 'OK':
-                adapter = find_adapter(bus)
-                if not adapter:
-                    return
+            return
 
         global device
         device = find_device1(bus)
