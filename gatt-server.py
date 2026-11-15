@@ -503,6 +503,7 @@ class TestPunchesCharacteristic(Characteristic):
         self._timeoutSourceIdAddPunches = None
         self._testBatchGuid = None
         self._siNo = None
+        self._siNoShouldIncrement = False
         self._noOfPunchesToAdd = 0
         self._noOfPunchesAdded = 0
         self._includeAllResponseByteArray = None
@@ -549,6 +550,9 @@ class TestPunchesCharacteristic(Characteristic):
                 uri = URIPATH + 'testpunches/addtestpunch/' + str(self._testBatchGuid) + '/' + self._siNo + '/'
                 resp = requests.get(uri)
                 print(resp.json())
+                if self._siNoShouldIncrement:
+                    siNo = int(self._siNo) + 1
+                    self._siNo = str(1 if siNo > 16777215 else siNo)
                 return True
             else:
                 print("addTestPunchInterval cleared")
@@ -581,6 +585,8 @@ class TestPunchesCharacteristic(Characteristic):
                 intervalMs = int(noOfPunchesAndIntervalAndSINo.split('\t')[1])
             if len(noOfPunchesAndIntervalAndSINo.split('\t')) > 2:
                 self._siNo = noOfPunchesAndIntervalAndSINo.split('\t')[2]
+            if len(noOfPunchesAndIntervalAndSINo.split('\t')) > 3:
+                self._siNoShouldIncrement = noOfPunchesAndIntervalAndSINo.split('\t')[3] == '1'
 
             if self._timeoutSourceIdAddPunches is not None:
                 GLib.source_remove(self._timeoutSourceIdAddPunches)
